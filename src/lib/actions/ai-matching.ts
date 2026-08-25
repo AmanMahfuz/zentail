@@ -2,8 +2,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient } from "@/lib/supabase/server";
-
-
+import { extractText } from "unpdf";
 
 export type JobMatchResult = {
   match_score: number;
@@ -65,9 +64,16 @@ export async function matchJobDescription(
         }
 
         if (pdfBuffer) {
-          const pdfParse = require("pdf-parse-new");
-          const pdfData = await pdfParse(pdfBuffer);
-          resumeText = pdfData.text;
+          try {
+            const { text } = await extractText(
+              new Uint8Array(pdfBuffer),
+              { mergePages: true }
+            );
+            resumeText = text;
+          } catch (parseErr) {
+            console.error("PDF parse error:", parseErr);
+            resumeText = "(Could not extract resume text — PDF may be scanned or image-based)";
+          }
         }
       }
     }
