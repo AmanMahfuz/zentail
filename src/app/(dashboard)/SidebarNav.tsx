@@ -13,6 +13,7 @@ export function SidebarNav() {
     { name: "Applications", href: "/applications", icon: Briefcase },
     { name: "Resumes", href: "/resumes", icon: FileText },
     { name: "Job Matcher", href: "/jobs/match", icon: CheckCircle2, badge: "AI" },
+    { name: "Analytics", href: "/analytics", icon: BarChart3, badge: "NEW" },
   ];
 
   return (
@@ -51,9 +52,6 @@ export function SidebarNav() {
       </div>
       <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 cursor-not-allowed opacity-60">
         <Users className="h-5 w-5 text-slate-400" /> Network
-      </div>
-      <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 cursor-not-allowed opacity-60">
-        <BarChart3 className="h-5 w-5 text-slate-400" /> Analytics
       </div>
     </nav>
   );
