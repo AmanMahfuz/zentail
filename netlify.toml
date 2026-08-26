@@ -1,0 +1,12 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+# Pin Netlify functions to Seoul region — same as Supabase db (ap-northeast-2)
+# This eliminates cross-region latency for every server action / DB call
+[functions]
+  node_bundler = "nft"
+
+[[edge_functions]]
+  function = "next-server"
+  path = "/*"
