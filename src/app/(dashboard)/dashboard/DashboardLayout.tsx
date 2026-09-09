@@ -1,164 +1,288 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Plus, Briefcase, Calendar, CheckCircle2, XCircle, Clock, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import {
+  Briefcase, Calendar, CheckCircle2, XCircle, Clock, AlertCircle,
+  ArrowRight, BookOpen, GraduationCap, Target, Zap, ChevronRight,
+  TrendingUp, Trophy,
+} from "lucide-react";
 import { AddApplicationModal } from "@/app/(dashboard)/applications/AddApplicationModal";
+import { formatDistanceToNow, differenceInDays, differenceInHours, differenceInMinutes } from "date-fns";
 
-type DashboardProps = {
+type Props = {
+  userName: string;
   countsByStatus: Record<string, number>;
   upcomingInterviews: any[];
   followUps: any[];
+  recentApplications: any[];
   applicationsThisWeek: number;
+  coveragePercent: number;
+  totalUnique: number;
+  matchedCount: number;
+  topMissing: any[];
+  activeLearningPath: any | null;
 };
 
-export default function DashboardLayoutClient({
-  countsByStatus,
-  upcomingInterviews,
-  followUps,
-  applicationsThisWeek,
-}: DashboardProps) {
-  const totalApplications = Object.values(countsByStatus).reduce((a, b) => a + b, 0);
-  const offers = countsByStatus.offer || 0;
-  const rejections = countsByStatus.rejected || 0;
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { bg: string; text: string; label: string }> = {
+    saved:       { bg: "#f1f5f9", text: "#64748b", label: "Saved" },
+    applied:     { bg: "#dbeafe", text: "#1e40af", label: "Applied" },
+    assessment:  { bg: "#fef3c7", text: "#92400e", label: "Assessment" },
+    interview:   { bg: "#ede9fe", text: "#5b21b6", label: "Interview" },
+    offer:       { bg: "#dcfce7", text: "#166534", label: "Offer" },
+    rejected:    { bg: "#fee2e2", text: "#991b1b", label: "Rejected" },
+  };
+  const s = map[status] ?? { bg: "#f1f5f9", text: "#64748b", label: status };
+  return (
+    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide"
+      style={{ backgroundColor: s.bg, color: s.text }}>{s.label}</span>
+  );
+}
+
+function Countdown({ scheduledAt }: { scheduledAt: string }) {
+  const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number } | null>(null);
+
+  useEffect(() => {
+    const update = () => {
+      const target = new Date(scheduledAt);
+      const now = new Date();
+      if (target <= now) { setTimeLeft({ d: 0, h: 0, m: 0 }); return; }
+      setTimeLeft({
+        d: differenceInDays(target, now),
+        h: differenceInHours(target, now) % 24,
+        m: differenceInMinutes(target, now) % 60,
+      });
+    };
+    update();
+    const id = setInterval(update, 60000);
+    return () => clearInterval(id);
+  }, [scheduledAt]);
+
+  if (!timeLeft) return null;
+  if (timeLeft.d === 0 && timeLeft.h === 0 && timeLeft.m === 0)
+    return <span className="text-xs font-semibold" style={{ color: "#16a34a" }}>Interview time!</span>;
 
   return (
-    <div className="space-y-8">
-      {/* Quick Actions Row */}
-      <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+    <div className="flex items-center gap-1.5 mt-2">
+      {timeLeft.d > 0 && (
+        <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: "var(--color-sunset-whisper)", color: "var(--color-sunset-orange)" }}>
+          {timeLeft.d}d
+        </span>
+      )}
+      <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: "var(--color-sunset-whisper)", color: "var(--color-sunset-orange)" }}>
+        {timeLeft.h}h
+      </span>
+      <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: "var(--color-sunset-whisper)", color: "var(--color-sunset-orange)" }}>
+        {timeLeft.m}m
+      </span>
+      <span className="text-[11px]" style={{ color: "var(--color-fog-text)" }}>remaining</span>
+    </div>
+  );
+}
+
+export default function DashboardLayoutClient({
+  userName, countsByStatus, upcomingInterviews, followUps,
+  recentApplications, applicationsThisWeek, coveragePercent,
+  totalUnique, matchedCount, topMissing, activeLearningPath,
+}: Props) {
+  const totalApplications = Object.values(countsByStatus).reduce((a, b) => a + b, 0);
+  const offers = countsByStatus.offer || 0;
+  const interviews = countsByStatus.interview || 0;
+  const nextInterview = upcomingInterviews[0] ?? null;
+  const coverageColor = coveragePercent >= 75 ? "#16a34a" : coveragePercent >= 50 ? "#d97706" : "var(--color-sunset-orange)";
+
+  return (
+    <div className="space-y-6">
+
+      {/* ── Welcome Banner ────────────────────────────────────────── */}
+      <div
+        className="rounded-2xl px-6 py-5 flex items-center justify-between"
+        style={{
+          background: "linear-gradient(135deg, var(--color-sunset-orange) 0%, #7c3aed 100%)",
+          boxShadow: "0 4px 24px rgba(94,76,255,0.25)",
+        }}
+      >
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Track a new opportunity</h2>
-          <p className="text-sm text-slate-500">Keep your pipeline up to date.</p>
+          <h2 className="text-xl font-semibold text-white mb-1" style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.02em" }}>
+            Welcome back{userName ? `, ${userName.split(" ")[0]}` : ""}! 👋
+          </h2>
+          <div className="flex items-center gap-4 text-white/80 text-sm">
+            <span><strong className="text-white">{totalApplications}</strong> applications in progress</span>
+            <span>•</span>
+            <span><strong className="text-white">{upcomingInterviews.length}</strong> interviews scheduled</span>
+            <span>•</span>
+            <span><strong className="text-white">{coveragePercent}%</strong> skill coverage</span>
+          </div>
         </div>
         <AddApplicationModal />
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="rounded-2xl border-blue-100 bg-gradient-to-br from-white to-blue-50/50 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-semibold text-slate-600">Total Applications</CardTitle>
-            <div className="bg-blue-100 p-2 rounded-lg">
-              <Briefcase className="w-4 h-4 text-blue-600" />
+      {/* ── Stat Cards Row ────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: "Total Apps", value: totalApplications, sub: `+${applicationsThisWeek} this week`, icon: Briefcase, iconBg: "#dbeafe", iconColor: "#1e40af", href: "/applications" },
+          { label: "Interviews", value: interviews, sub: `${upcomingInterviews.length} upcoming`, icon: Calendar, iconBg: "#ede9fe", iconColor: "var(--color-sunset-orange)", href: "/interviews" },
+          { label: "Offers", value: offers, sub: "Landed so far", icon: Trophy, iconBg: "#dcfce7", iconColor: "#166534", href: "/applications" },
+          { label: "Skill Coverage", value: `${coveragePercent}%`, sub: `${matchedCount}/${totalUnique} skills`, icon: Target, iconBg: "var(--color-frost-tint)", iconColor: "var(--color-steel-text)", href: "/skills" },
+        ].map(({ label, value, sub, icon: Icon, iconBg, iconColor, href }) => (
+          <Link key={label} href={href}
+            className="rounded-xl px-5 py-4 flex items-center gap-4 transition-all hover:-translate-y-0.5"
+            style={{ backgroundColor: "var(--color-canvas-white)", boxShadow: "var(--shadow-card)" }}
+          >
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: iconBg }}>
+              <Icon className="w-5 h-5" style={{ color: iconColor }} />
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900">{totalApplications}</div>
-            <p className="text-xs text-slate-500 mt-1">
-              <span className="text-blue-600 font-medium">+{applicationsThisWeek}</span> this week
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-amber-100 bg-gradient-to-br from-white to-amber-50/50 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-semibold text-slate-600">Interviews</CardTitle>
-            <div className="bg-amber-100 p-2 rounded-lg">
-              <Calendar className="w-4 h-4 text-amber-600" />
+            <div>
+              <p className="text-2xl font-bold" style={{ fontFamily: "var(--font-display)", color: "var(--color-graphite-heading)", letterSpacing: "-0.03em", lineHeight: 1 }}>{value}</p>
+              <p className="text-[11px] font-semibold mt-0.5" style={{ color: "var(--color-fog-text)" }}>{label}</p>
+              <p className="text-[10px] mt-0.5" style={{ color: "var(--color-steel-text)" }}>{sub}</p>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900">{upcomingInterviews.length}</div>
-            <p className="text-xs text-slate-500 mt-1">Upcoming scheduled</p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-emerald-100 bg-gradient-to-br from-white to-emerald-50/50 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-semibold text-slate-600">Offers</CardTitle>
-            <div className="bg-emerald-100 p-2 rounded-lg">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900">{offers}</div>
-            <p className="text-xs text-slate-500 mt-1">Landed so far</p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-red-100 bg-gradient-to-br from-white to-red-50/50 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-semibold text-slate-600">Rejections</CardTitle>
-            <div className="bg-red-100 p-2 rounded-lg">
-              <XCircle className="w-4 h-4 text-red-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900">{rejections}</div>
-            <p className="text-xs text-slate-500 mt-1">Keep pushing forward</p>
-          </CardContent>
-        </Card>
+          </Link>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Needs Follow-up */}
-        <Card className="rounded-2xl border-slate-200 shadow-sm h-full">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-500" /> Needs Follow-up
-            </CardTitle>
-            <CardDescription>Applications in later stages with no recent activity.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {followUps.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                <Clock className="w-8 h-8 text-slate-400 mb-3" />
-                <p className="text-sm font-medium text-slate-600">You're all caught up!</p>
-                <p className="text-xs text-slate-500 mt-1">No stale applications right now.</p>
+      {/* ── Main Grid ─────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {/* Recent Applications — 2 col */}
+        <div className="lg:col-span-2 rounded-xl overflow-hidden" style={{ backgroundColor: "var(--color-canvas-white)", boxShadow: "var(--shadow-card)" }}>
+          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-ash-border)" }}>
+            <h3 className="text-sm font-semibold" style={{ fontFamily: "var(--font-display)", color: "var(--color-graphite-heading)", letterSpacing: "-0.01em" }}>
+              Recent Applications
+            </h3>
+            <Link href="/applications" className="text-xs font-semibold flex items-center gap-1" style={{ color: "var(--color-sunset-orange)" }}>
+              View all <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          {recentApplications.length === 0 ? (
+            <div className="p-8 text-center">
+              <Briefcase className="w-8 h-8 mx-auto mb-2" style={{ color: "var(--color-fog-text)" }} />
+              <p className="text-sm" style={{ color: "var(--color-slate-body)" }}>No applications yet.</p>
+              <p className="text-xs mt-1" style={{ color: "var(--color-fog-text)" }}>Track your first job above.</p>
+            </div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: "var(--color-ash-border)" }}>
+              {recentApplications.map((app: any) => (
+                <div key={app.id} className="px-5 py-3 flex items-center gap-3 hover:bg-[var(--color-cloud-mist)] transition-colors">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold" style={{ backgroundColor: "var(--color-sunset-whisper)", color: "var(--color-sunset-orange)" }}>
+                    {(app.job?.company ?? "?")[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate" style={{ color: "var(--color-graphite-heading)" }}>{app.job?.title ?? "Unknown Role"}</p>
+                    <p className="text-xs truncate" style={{ color: "var(--color-slate-body)" }}>{app.job?.company ?? "Unknown Company"} · {formatDistanceToNow(new Date(app.created_at), { addSuffix: true })}</p>
+                  </div>
+                  <StatusBadge status={app.status} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right column */}
+        <div className="flex flex-col gap-4">
+
+          {/* Next Interview Countdown */}
+          <div className="rounded-xl p-5" style={{ backgroundColor: "var(--color-canvas-white)", boxShadow: "var(--shadow-card)" }}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ backgroundColor: "var(--color-sunset-whisper)" }}>
+                <Zap className="w-3.5 h-3.5" style={{ color: "var(--color-sunset-orange)" }} />
               </div>
+              <h3 className="text-sm font-semibold" style={{ color: "var(--color-graphite-heading)", fontFamily: "var(--font-display)" }}>Next Interview</h3>
+            </div>
+            {nextInterview ? (
+              <>
+                <p className="font-semibold text-sm" style={{ color: "var(--color-graphite-heading)" }}>
+                  {(nextInterview.application as any)?.job?.company ?? "Unknown"}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--color-slate-body)" }}>
+                  {(nextInterview.application as any)?.job?.title ?? "Unknown Role"}
+                </p>
+                <Countdown scheduledAt={nextInterview.scheduled_at} />
+                <Link
+                  href={`/interviews/${nextInterview.id}`}
+                  className="mt-3 flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg text-xs font-semibold text-white"
+                  style={{ backgroundColor: "var(--color-sunset-orange)" }}
+                >
+                  Prepare Now <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </>
             ) : (
-              <div className="space-y-4">
-                {followUps.map((app) => {
-                  const daysAgo = Math.floor((new Date().getTime() - new Date(app.updated_at).getTime()) / (1000 * 3600 * 24));
-                  return (
-                    <div key={app.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-white hover:border-blue-100 transition-colors">
-                      <div>
-                        <h4 className="font-semibold text-slate-900 text-sm">{app.job.title}</h4>
-                        <p className="text-xs text-slate-500 mt-1">{app.job.company}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className="inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 mb-1">
-                          {app.status}
-                        </span>
-                        <p className="text-[11px] text-slate-400">{daysAgo} days ago</p>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="text-center py-4">
+                <Calendar className="w-8 h-8 mx-auto mb-2" style={{ color: "var(--color-fog-text)" }} />
+                <p className="text-xs" style={{ color: "var(--color-slate-body)" }}>No upcoming interviews</p>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* This Week's Progress (Placeholder for chart) */}
-        <Card className="rounded-2xl border-slate-200 shadow-sm h-full">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Weekly Activity</CardTitle>
-            <CardDescription>Your application velocity over the last 7 days.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center min-h-[250px]">
-             {/* We will build a real chart here in Phase 4/5. For Phase 1, we show a beautiful empty state or basic static viz */}
-             <div className="w-full flex items-end justify-between px-4 gap-2 h-40 opacity-70">
-                {[2, 5, 3, 7, 4, 1, applicationsThisWeek || 1].map((val, i) => (
-                  <div key={i} className="w-full bg-blue-100 rounded-t-sm relative group hover:bg-blue-200 transition-colors" style={{ height: `${(val / 10) * 100}%`, minHeight: '10%' }}>
-                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                      {val}
-                    </div>
+          {/* Skills Progress */}
+          <div className="rounded-xl p-5" style={{ backgroundColor: "var(--color-canvas-white)", boxShadow: "var(--shadow-card)" }}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ backgroundColor: "var(--color-frost-tint)" }}>
+                  <Target className="w-3.5 h-3.5" style={{ color: "var(--color-steel-text)" }} />
+                </div>
+                <h3 className="text-sm font-semibold" style={{ color: "var(--color-graphite-heading)", fontFamily: "var(--font-display)" }}>Skill Coverage</h3>
+              </div>
+              <span className="text-sm font-bold" style={{ color: coverageColor }}>{coveragePercent}%</span>
+            </div>
+            <div className="h-1.5 rounded-full overflow-hidden mb-3" style={{ backgroundColor: "var(--color-frost-tint)" }}>
+              <div className="h-full rounded-full transition-all" style={{ width: `${coveragePercent}%`, backgroundColor: coverageColor }} />
+            </div>
+            {topMissing.length > 0 && (
+              <div className="space-y-1.5 mb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--color-fog-text)" }}>Top Missing</p>
+                {topMissing.map((gap: any) => (
+                  <div key={gap.skill_name} className="flex items-center justify-between text-xs">
+                    <span style={{ color: "var(--color-slate-body)" }}>• {gap.skill_name}</span>
+                    <span className="font-semibold" style={{ color: "#d97706" }}>{gap.required_in_count} jobs</span>
                   </div>
                 ))}
-             </div>
-             <div className="flex w-full justify-between mt-4 px-4 text-xs font-medium text-slate-400 uppercase">
-                <span>Mon</span>
-                <span>Tue</span>
-                <span>Wed</span>
-                <span>Thu</span>
-                <span>Fri</span>
-                <span>Sat</span>
-                <span>Sun</span>
-             </div>
-          </CardContent>
-        </Card>
+              </div>
+            )}
+            <Link href="/skills" className="text-xs font-semibold flex items-center gap-1" style={{ color: "var(--color-sunset-orange)" }}>
+              Full Skills Analysis <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Bottom Row ────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+
+
+        {/* Needs Follow-up */}
+        <div className="rounded-xl overflow-hidden" style={{ backgroundColor: "var(--color-canvas-white)", boxShadow: "var(--shadow-card)" }}>
+          <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: "1px solid var(--color-ash-border)" }}>
+            <AlertCircle className="w-4 h-4" style={{ color: "#d97706" }} />
+            <h3 className="text-sm font-semibold" style={{ color: "var(--color-graphite-heading)", fontFamily: "var(--font-display)" }}>Needs Follow-up</h3>
+          </div>
+          {followUps.length === 0 ? (
+            <div className="p-6 text-center">
+              <CheckCircle2 className="w-7 h-7 mx-auto mb-2" style={{ color: "#16a34a" }} />
+              <p className="text-sm font-medium" style={{ color: "var(--color-slate-body)" }}>All caught up!</p>
+            </div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: "var(--color-ash-border)" }}>
+              {followUps.map((app: any) => {
+                const daysAgo = Math.floor((Date.now() - new Date(app.updated_at).getTime()) / 86400000);
+                return (
+                  <div key={app.id} className="px-5 py-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: "var(--color-graphite-heading)" }}>{app.job?.title}</p>
+                      <p className="text-xs" style={{ color: "var(--color-slate-body)" }}>{app.job?.company}</p>
+                    </div>
+                    <div className="text-right">
+                      <StatusBadge status={app.status} />
+                      <p className="text-[10px] mt-1" style={{ color: "var(--color-fog-text)" }}>{daysAgo}d no update</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

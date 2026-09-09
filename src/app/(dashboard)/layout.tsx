@@ -2,9 +2,9 @@ import "@/dom-polyfill";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { LayoutDashboard, Briefcase, FileText, BarChart3, Users, Settings, LogOut, CheckCircle2 } from "lucide-react";
-import { signoutAction } from "@/lib/actions/auth";
+import { Zap } from "lucide-react";
 import { SidebarNav } from "./SidebarNav";
+import { SignOutButton } from "./SignOutButton";
 
 export default async function DashboardRootLayout({
   children,
@@ -12,12 +12,8 @@ export default async function DashboardRootLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-
   const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/signin");
-  }
+  if (!user) redirect("/signin");
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -25,45 +21,87 @@ export default async function DashboardRootLayout({
     .eq("id", user.id)
     .single();
 
-  if (!profile?.onboarding_completed) {
-    redirect("/onboarding");
-  }
+  if (!profile?.onboarding_completed) redirect("/onboarding");
+
+  const initials = profile.full_name
+    ? profile.full_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
+    : "U";
 
   return (
-    <div className="flex min-h-screen w-full bg-slate-50 text-slate-900">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-slate-200 bg-white flex flex-col fixed inset-y-0 z-10">
-        <div className="h-16 flex items-center px-6 border-b border-slate-100">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="bg-blue-600 rounded p-1.5 shadow-sm">
-              <LayoutDashboard className="h-5 w-5 text-white" />
+    <div className="flex min-h-screen w-full" style={{ backgroundColor: "var(--color-cloud-mist)" }}>
+
+      {/* ── Sidebar ────────────────────────────────────────────────── */}
+      <aside
+        className="w-60 flex flex-col fixed inset-y-0 z-20"
+        style={{
+          backgroundColor: "var(--color-canvas-white)",
+          borderRight: "1px solid var(--color-ash-border)",
+        }}
+      >
+        {/* Logo */}
+        <div
+          className="h-14 flex items-center px-5"
+          style={{ borderBottom: "1px solid var(--color-ash-border)" }}
+        >
+          <Link href="/dashboard" className="flex items-center gap-2.5 group">
+            <div
+              className="w-7 h-7 rounded flex items-center justify-center transition-all group-hover:scale-105"
+              style={{ backgroundColor: "var(--color-sunset-orange)" }}
+            >
+              <Zap className="w-4 h-4 text-white fill-white" />
             </div>
-            <span className="font-bold text-xl tracking-tight text-slate-900">Zentail</span>
+            <span
+              className="text-lg font-semibold tracking-tight"
+              style={{
+                fontFamily: "var(--font-display)",
+                color: "var(--color-graphite-heading)",
+                letterSpacing: "-0.03em",
+              }}
+            >
+              Zentail
+            </span>
           </Link>
         </div>
-        
+
+        {/* Nav */}
         <SidebarNav />
 
-        <div className="p-4 border-t border-slate-200">
-          <div className="flex items-center gap-3 mb-4 px-2">
-            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0">
-              {profile.full_name ? profile.full_name.charAt(0).toUpperCase() : "U"}
+        {/* User footer */}
+        <div
+          className="p-4"
+          style={{ borderTop: "1px solid var(--color-ash-border)" }}
+        >
+          <div className="flex items-center gap-3 mb-3 px-1">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold"
+              style={{
+                backgroundColor: "var(--color-sunset-whisper)",
+                color: "var(--color-sunset-orange)",
+              }}
+            >
+              {initials}
             </div>
-            <div className="truncate">
-              <p className="text-sm font-semibold truncate">{profile.full_name || "User"}</p>
-              <p className="text-xs text-slate-500 truncate">{user.email}</p>
+            <div className="min-w-0">
+              <p
+                className="text-sm font-medium truncate"
+                style={{ color: "var(--color-graphite-heading)" }}
+              >
+                {profile.full_name || "User"}
+              </p>
+              <p
+                className="text-xs truncate"
+                style={{ color: "var(--color-steel-text)" }}
+              >
+                {user.email}
+              </p>
             </div>
           </div>
-          <form action={signoutAction}>
-            <button type="submit" className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors">
-              <LogOut className="h-5 w-5" /> Sign Out
-            </button>
-          </form>
+          <SignOutButton />
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 ml-64 overflow-y-auto p-8 relative flex flex-col min-h-screen">
+      {/* ── Main Content ───────────────────────────────────────────── */}
+      <main className="flex-1 ml-60 h-screen overflow-hidden flex flex-col">
         {children}
       </main>
     </div>

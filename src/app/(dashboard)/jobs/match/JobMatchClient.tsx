@@ -78,9 +78,9 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>Select Resume</Label>
+            <Label className="text-sm font-medium text-slate-700">Select Resume</Label>
             <Select value={resumeId || "none"} onValueChange={handleResumeSelect}>
-              <SelectTrigger className="w-full h-10 bg-white">
+              <SelectTrigger className="w-full h-12 bg-white rounded-xl border-slate-200 shadow-sm text-sm focus:ring-2 focus:ring-blue-500/20 transition-all">
                 <SelectValue>
                   {(val: string | null) => {
                     if (!val || val === "none") return "No Resume";
@@ -103,9 +103,9 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
           </div>
 
           <div className="space-y-2">
-            <Label>Select Saved Job</Label>
+            <Label className="text-sm font-medium text-slate-700">Select Saved Job</Label>
             <Select value={selectedJobId || "none"} onValueChange={handleJobSelect}>
-              <SelectTrigger className="w-full h-10 bg-white">
+              <SelectTrigger className="w-full h-12 bg-white rounded-xl border-slate-200 shadow-sm text-sm focus:ring-2 focus:ring-blue-500/20 transition-all">
                 <SelectValue>
                   {(val: string | null) => {
                     if (!val || val === "none") return "Custom (Paste below)";
@@ -126,9 +126,9 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
         </div>
 
         <div className="space-y-2">
-          <Label className="flex justify-between items-center">
+          <Label className="flex justify-between items-center text-sm font-medium text-slate-700">
             Job Description
-            {selectedJobId && <span className="text-[11px] font-normal text-slate-400">Auto-filled from saved job</span>}
+            {selectedJobId && <span className="text-xs font-normal text-slate-400">Auto-filled from saved job</span>}
           </Label>
           <Textarea 
             value={jobDescription}
@@ -137,7 +137,7 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
               if (selectedJobId) setSelectedJobId(""); // Reset select if they start typing manually
             }}
             placeholder="Paste the raw text of the job posting here..."
-            className="h-[400px] min-h-[400px] max-h-[400px] overflow-y-auto resize-none"
+            className="h-[400px] min-h-[400px] max-h-[400px] overflow-y-auto resize-none p-4 rounded-xl border-slate-200 shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500/20 text-sm leading-relaxed"
             style={{ fieldSizing: "fixed" } as any}
           />
         </div>
@@ -147,7 +147,8 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
         <Button 
           onClick={handleMatch} 
           disabled={isProcessing || !jobDescription.trim()} 
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 text-lg rounded-xl"
+          className="w-full text-white h-12 text-base rounded-xl font-semibold shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5"
+          style={{ backgroundColor: "var(--color-sunset-orange)" }}
         >
           {isProcessing ? (
             <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Analyzing Match...</>
@@ -161,16 +162,26 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
       <div style={{ flex: "1 1 0", minWidth: 0 }}>
         {result ? (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <Card className="rounded-2xl border-slate-200 shadow-sm overflow-hidden relative">
-              <div className={`p-8 text-center text-white relative z-10 ${
-                result.match_score >= 80 ? 'bg-gradient-to-br from-emerald-400 to-emerald-600' :
-                result.match_score >= 50 ? 'bg-gradient-to-br from-amber-400 to-amber-600' : 'bg-gradient-to-br from-red-400 to-red-600'
-              }`}>
-                <h3 className="text-sm uppercase tracking-widest font-bold opacity-90 mb-2">Match Score</h3>
-                <div className="text-7xl font-black tracking-tight drop-shadow-sm">{result.match_score}%</div>
+            <Card className="rounded-2xl border-slate-200 shadow-sm overflow-hidden relative bg-white">
+              <div className="p-8 text-center relative z-10 flex flex-col items-center justify-center">
+                <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] uppercase tracking-widest font-semibold mb-4">
+                  Match Score
+                </div>
+                <div className={`text-7xl font-black tracking-tighter ${
+                  result.match_score >= 80 ? 'text-emerald-500' :
+                  result.match_score >= 50 ? 'text-amber-500' : 'text-red-500'
+                }`}>
+                  {result.match_score}%
+                </div>
+                
+                {/* Subtle colored glow effect behind the text */}
+                <div className={`absolute inset-0 opacity-10 blur-3xl rounded-full scale-150 z-[-1] ${
+                  result.match_score >= 80 ? 'bg-emerald-400' :
+                  result.match_score >= 50 ? 'bg-amber-400' : 'bg-red-400'
+                }`} />
               </div>
-              <div className="absolute top-0 right-0 p-4 opacity-[0.15] z-0">
-                <Bot className="w-48 h-48 text-white -rotate-12 translate-x-8 -translate-y-8" />
+              <div className="absolute top-0 right-0 p-4 opacity-[0.03] z-0 pointer-events-none">
+                <Bot className="w-48 h-48 text-slate-900 -rotate-12 translate-x-8 -translate-y-8" />
               </div>
             </Card>
 
@@ -187,7 +198,7 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {result.matched_skills.map((skill, i) => (
-                      <span key={i} className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm">
+                      <span key={i} className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5">
                         {skill}
                       </span>
                     ))}
@@ -209,7 +220,7 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {result.missing_skills.map((skill, i) => (
-                      <span key={i} className="bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm">
+                      <span key={i} className="bg-red-50 text-red-700 border border-red-100 px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5">
                         {skill}
                       </span>
                     ))}

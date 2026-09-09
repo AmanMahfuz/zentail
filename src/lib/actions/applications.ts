@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { generateTailoredResume, generateCoverLetter } from "./phase3";
 
 // --- Types ---
 // For simplicity, we define the application status enum matching Supabase
@@ -147,7 +148,7 @@ export async function createApplication(
     jobId = newJob.id;
   }
 
-  const { error: appError } = await supabase.from("applications").insert({
+  const { data: appData, error: appError } = await supabase.from("applications").insert({
     user_id: user.id,
     job_id: jobId,
     resume_id: parsed.data.resumeId || null,
@@ -156,12 +157,20 @@ export async function createApplication(
       ? new Date(parsed.data.applicationDate).toISOString()
       : new Date().toISOString(),
     notes: parsed.data.notes || null,
-  });
+  }).select("id").single();
 
-  if (appError) {
+  if (appError || !appData) {
     console.error(appError);
     return { success: false, message: "Could not create application." };
   }
+
+  // Fire and forget background AI tasks
+  // Note: in a true serverless environment (e.g. Vercel), this might be killed early.
+  // For standard Next.js node environments, this allows background processing.
+  Promise.allSettled([
+    generateTailoredResume(appData.id),
+    generateCoverLetter(appData.id)
+  ]).catch(console.error);
 
   revalidatePath("/applications");
   revalidatePath("/resumes");

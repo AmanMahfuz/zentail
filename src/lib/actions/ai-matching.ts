@@ -1,6 +1,6 @@
 "use server";
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { extractText } from "unpdf";
 
@@ -28,8 +28,7 @@ export async function matchJobDescription(
       return { success: false, message: "Gemini API key is not configured in .env.local" };
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const ai = new GoogleGenAI({ apiKey });
 
     let resumeText = "No resume provided. Assume a blank slate.";
 
@@ -117,16 +116,26 @@ ${resumeText}
 ------------------------
 `;
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        temperature: 0,
         responseMimeType: "application/json",
-        temperature: 0, // Deterministic — same input always gives same score
-      },
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            match_score: { type: Type.INTEGER },
+            matched_skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+            missing_skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+            recommendations: { type: Type.ARRAY, items: { type: Type.STRING } }
+          },
+          required: ["match_score", "matched_skills", "missing_skills", "recommendations"]
+        }
+      }
     });
 
-    const responseText = result.response.text();
-    const parsedResult = JSON.parse(responseText) as JobMatchResult;
+    const parsedResult = JSON.parse(response.text || "{}") as JobMatchResult;
 
     return { success: true, result: parsedResult };
 
@@ -187,8 +196,7 @@ export async function extractJobDetails(
       return { success: false, message: "Please provide a longer job description." };
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const ai = new GoogleGenAI({ apiKey });
 
     const prompt = `
 You are a highly accurate data extraction tool. 
@@ -215,16 +223,27 @@ ${textToAnalyze.slice(0, 15000)} // Limiting to prevent token limits on large we
 -----------------------
 `;
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        temperature: 0.1,
         responseMimeType: "application/json",
-      },
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            company: { type: Type.STRING },
+            jobTitle: { type: Type.STRING },
+            location: { type: Type.STRING },
+            salaryMin: { type: Type.INTEGER },
+            salaryMax: { type: Type.INTEGER }
+          },
+          required: ["company", "jobTitle", "location", "salaryMin", "salaryMax"]
+        }
+      }
     });
 
-    let responseText = result.response.text();
-    // Strip markdown formatting if the model accidentally included it
-    responseText = responseText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+    let responseText = response.text || "{}";
     
     console.log("AI Extracted Text:", responseText);
     

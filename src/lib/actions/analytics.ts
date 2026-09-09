@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 export type ResumeStats = {
   resume_id: string;
@@ -168,8 +168,7 @@ export async function generateResumeInsight(
   if (!apiKey) return { insight: "", recommendation: "" };
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const ai = new GoogleGenAI({ apiKey });
 
     const prompt = `You are a career coach analyzing resume performance data for a job seeker.
 
@@ -187,20 +186,30 @@ ${JSON.stringify(
   2
 )}
 
-Return a JSON object with exactly two fields:
+Return exactly two fields:
 1. "insight": 1-2 sentences explaining which resume performs best and WHY (use the data, be specific with numbers).
 2. "recommendation": 1 clear, specific action the user should take RIGHT NOW (e.g. "Use Resume X for all frontend applications — it gets interviews 2x faster than your other resumes.").
 
-Be honest. If only one resume exists, comment on what the data shows. No markdown, no bullet points. Plain text only.
+Be honest. If only one resume exists, comment on what the data shows.`;
 
-Respond ONLY with valid JSON: {"insight": "...", "recommendation": "..."}`;
-
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0, responseMimeType: "application/json" },
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        temperature: 0,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            insight: { type: Type.STRING },
+            recommendation: { type: Type.STRING }
+          },
+          required: ["insight", "recommendation"]
+        }
+      }
     });
 
-    const parsed = JSON.parse(result.response.text());
+    const parsed = JSON.parse(response.text || "{}");
     return {
       insight: parsed.insight || "",
       recommendation: parsed.recommendation || "",

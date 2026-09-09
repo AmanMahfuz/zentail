@@ -5,8 +5,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Building2, MapPin, Calendar, DollarSign, ExternalLink, Briefcase, Sparkles } from "lucide-react";
+import { Trash2, Building2, MapPin, Calendar, DollarSign, ExternalLink, Briefcase, Sparkles, Video } from "lucide-react";
 import { ApplicationStatus, updateApplication, deleteApplication } from "@/lib/actions/applications";
+import { generateTailoredResume, generateCoverLetter } from "@/lib/actions/phase3";
+import { AddInterviewModal } from "./AddInterviewModal";
+import { DocumentPreviewModal } from "./DocumentPreviewModal";
+import Link from "next/link";
 
 type ApplicationDetailsSheetProps = {
   app: any;
@@ -29,7 +33,42 @@ export function ApplicationDetailsSheet({ app, isOpen, onOpenChange }: Applicati
   const [notes, setNotes] = useState(app?.notes || "");
   const [status, setStatus] = useState<ApplicationStatus>(app?.status || "saved");
 
+  const [isGeneratingResume, setIsGeneratingResume] = useState(false);
+  const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
+  const [previewContent, setPreviewContent] = useState("");
+  const [previewTitle, setPreviewTitle] = useState("");
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
   if (!app) return null;
+
+  const handleGenerateResume = async () => {
+    setIsGeneratingResume(true);
+    const res = await generateTailoredResume(app.id);
+    setIsGeneratingResume(false);
+    if (res.success && res.data) {
+      setPreviewTitle("Tailored ATS Resume");
+      setPreviewContent(res.data.resume_markdown || "");
+      setPreviewPdfUrl(res.data.pdf_url || null);
+      setIsPreviewOpen(true);
+    } else {
+      alert("Error: " + (res.message || "Failed to generate"));
+    }
+  };
+
+  const handleGenerateCoverLetter = async () => {
+    setIsGeneratingCoverLetter(true);
+    const res = await generateCoverLetter(app.id, "Professional");
+    setIsGeneratingCoverLetter(false);
+    if (res.success && res.data) {
+      setPreviewTitle("Generated Cover Letter");
+      setPreviewContent(res.data.cover_letter_content || "");
+      setPreviewPdfUrl(res.data.pdf_url || null);
+      setIsPreviewOpen(true);
+    } else {
+      alert("Error: " + (res.message || "Failed to generate"));
+    }
+  };
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this application?")) return;
@@ -116,6 +155,42 @@ export function ApplicationDetailsSheet({ app, isOpen, onOpenChange }: Applicati
             )}
           </div>
 
+          {/* Phase 3 Action Buttons */}
+          <div className="space-y-3 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100">
+            <Label className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4" /> Smart Generation
+            </Label>
+            <div className="flex flex-col gap-2">
+              <Link href={`/applications/${app.id}/builder`} className="w-full">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start border-emerald-200 hover:bg-emerald-100 hover:text-emerald-900 bg-white"
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Open Interactive Resume Builder
+                </Button>
+              </Link>
+              <Button 
+                onClick={handleGenerateResume} 
+                disabled={isGeneratingResume}
+                variant="outline" 
+                className="w-full justify-start border-emerald-200 hover:bg-emerald-100 hover:text-emerald-900"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                {isGeneratingResume ? "Generating..." : "Generate Tailored Resume"}
+              </Button>
+              <Button 
+                onClick={handleGenerateCoverLetter} 
+                disabled={isGeneratingCoverLetter}
+                variant="outline" 
+                className="w-full justify-start border-emerald-200 hover:bg-emerald-100 hover:text-emerald-900"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                {isGeneratingCoverLetter ? "Generating..." : "Generate Cover Letter"}
+              </Button>
+            </div>
+          </div>
+
           <div className="space-y-6">
             <div className="space-y-3">
               <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pipeline Stage</Label>
@@ -137,6 +212,21 @@ export function ApplicationDetailsSheet({ app, isOpen, onOpenChange }: Applicati
                 </div>
               </div>
             </div>
+
+            {status === "interview" && (
+              <div className="space-y-3 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+                <div className="flex justify-between items-center">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-blue-800 flex items-center gap-1.5">
+                    <Video className="w-4 h-4" /> Interview Prep
+                  </Label>
+                  <Link href="/interviews" className="text-[11px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-wider">
+                    View All
+                  </Link>
+                </div>
+                <p className="text-sm text-blue-700/80 mb-2">Schedule an interview round to unlock an AI-powered prep workspace.</p>
+                <AddInterviewModal applicationId={app.id} />
+              </div>
+            )}
 
             <div className="space-y-3">
               <Label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex justify-between items-center">
@@ -174,6 +264,14 @@ export function ApplicationDetailsSheet({ app, isOpen, onOpenChange }: Applicati
           </div>
         </div>
       </SheetContent>
+
+      <DocumentPreviewModal 
+        isOpen={isPreviewOpen} 
+        onOpenChange={setIsPreviewOpen} 
+        title={previewTitle} 
+        markdownContent={previewContent}
+        pdfUrl={previewPdfUrl}
+      />
     </Sheet>
   );
 }

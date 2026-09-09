@@ -12,9 +12,21 @@ type DateRange = "7" | "30" | "all";
 export default function AnalyticsClient({
   initialStats,
   initialInsight,
+  funnel,
+  topCompanies,
+  coveragePercent,
+  matchedCount,
+  totalUnique,
+  skillsLearned,
 }: {
   initialStats: ResumeStats[];
   initialInsight: { insight: string; recommendation: string };
+  funnel: { applied: number; interview: number; offer: number };
+  topCompanies: { name: string; count: number; bestStatus: string }[];
+  coveragePercent: number;
+  matchedCount: number;
+  totalUnique: number;
+  skillsLearned: string[];
 }) {
   const [stats, setStats] = useState(initialStats);
   const [insight, setInsight] = useState(initialInsight);
@@ -42,29 +54,22 @@ export default function AnalyticsClient({
   const overallRate = totalApps > 0 ? Math.round((totalInterviews / totalApps) * 100) : 0;
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Resume Analytics</h1>
-          <p className="text-slate-500 mt-1">See which resume is winning you interviews.</p>
-        </div>
-        {/* Date filter */}
-        <div className="flex gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
-          {(["7", "30", "all"] as DateRange[]).map((r) => (
-            <button
-              key={r}
-              onClick={() => handleDateChange(r)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                dateRange === r
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-slate-500 hover:text-slate-900"
-              }`}
-            >
-              {r === "7" ? "7 Days" : r === "30" ? "30 Days" : "All Time"}
-            </button>
-          ))}
-        </div>
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* Date filter */}
+      <div className="flex gap-1 mb-6" style={{ backgroundColor: "var(--color-canvas-white)", boxShadow: "var(--shadow-card)", padding: "4px", borderRadius: "12px", display: "inline-flex" }}>
+        {(["7", "30", "all"] as DateRange[]).map((r) => (
+          <button
+            key={r}
+            onClick={() => handleDateChange(r)}
+            className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all"
+            style={{
+              backgroundColor: dateRange === r ? "var(--color-sunset-orange)" : "transparent",
+              color: dateRange === r ? "#ffffff" : "var(--color-slate-body)",
+            }}
+          >
+            {r === "7" ? "Last 7 Days" : r === "30" ? "Last 30 Days" : "All Time"}
+          </button>
+        ))}
       </div>
 
       {/* Top summary cards */}
@@ -75,17 +80,122 @@ export default function AnalyticsClient({
           { label: "Offers", value: totalOffers, icon: Trophy, color: "emerald" },
           { label: "Overall Interview Rate", value: `${overallRate}%`, icon: FileText, color: "amber" },
         ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-            <div className={`w-9 h-9 rounded-xl bg-${color}-50 flex items-center justify-center mb-3`}>
+          <div key={label} className="bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md cursor-default group">
+            <div className={`w-9 h-9 rounded-xl bg-${color}-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
               <Icon className={`w-5 h-5 text-${color}-600`} />
             </div>
-            <p className="text-2xl font-bold text-slate-900">{value}</p>
-            <p className="text-sm text-slate-500 mt-0.5">{label}</p>
+            <p className="text-2xl font-black text-slate-800 tracking-tighter">{value}</p>
+            <p className="text-sm font-medium text-slate-500 mt-0.5">{label}</p>
           </div>
         ))}
       </div>
 
-      {/* AI Insight + Recommendation */}
+      {/* ── Application Funnel ─────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Funnel */}
+        <div className="rounded-xl p-5" style={{ backgroundColor: "var(--color-canvas-white)", boxShadow: "var(--shadow-card)" }}>
+          <h2 className="text-sm font-semibold mb-4" style={{ fontFamily: "var(--font-display)", color: "var(--color-graphite-heading)", letterSpacing: "-0.01em" }}>
+            Application Funnel
+          </h2>
+          <div className="space-y-3">
+            {[
+              { label: "Applied",   count: funnel.applied,   color: "var(--color-sunset-orange)" },
+              { label: "Interview", count: funnel.interview,  color: "#d97706" },
+              { label: "Offer",     count: funnel.offer,      color: "#16a34a" },
+            ].map(({ label, count, color }) => {
+              const pct = funnel.applied > 0 ? Math.max(4, Math.round((count / funnel.applied) * 100)) : 4;
+              return (
+                <div key={label}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold" style={{ color: "var(--color-slate-body)" }}>{label}</span>
+                    <span className="text-xs font-bold" style={{ color }}>{count}</span>
+                  </div>
+                  <div className="h-6 rounded-lg overflow-hidden" style={{ backgroundColor: "var(--color-frost-tint)" }}>
+                    <div className="h-full rounded-lg flex items-center pl-2 transition-all" style={{ width: `${pct}%`, backgroundColor: color }}>
+                      {pct > 20 && <span className="text-[10px] font-bold text-white">{funnel.applied > 0 ? Math.round((count / funnel.applied) * 100) : 0}%</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <p className="text-[10px] pt-2" style={{ color: "var(--color-fog-text)" }}>
+              Conversion: {funnel.applied > 0 ? Math.round((funnel.interview / funnel.applied) * 100) : 0}% → {funnel.interview > 0 ? Math.round((funnel.offer / funnel.interview) * 100) : 0}%
+            </p>
+          </div>
+        </div>
+
+        {/* Top Companies */}
+        <div className="rounded-xl p-5" style={{ backgroundColor: "var(--color-canvas-white)", boxShadow: "var(--shadow-card)" }}>
+          <h2 className="text-sm font-semibold mb-4" style={{ fontFamily: "var(--font-display)", color: "var(--color-graphite-heading)", letterSpacing: "-0.01em" }}>
+            Top Companies
+          </h2>
+          {topCompanies.length === 0 ? (
+            <p className="text-xs" style={{ color: "var(--color-fog-text)" }}>No applications yet.</p>
+          ) : (
+            <div className="space-y-2.5">
+              {topCompanies.map((co, i) => {
+                const statusColor: Record<string, string> = { offer: "#16a34a", interview: "var(--color-sunset-orange)", applied: "#1e40af", saved: "var(--color-steel-text)" };
+                return (
+                  <div key={co.name} className="flex items-center gap-3">
+                    <span className="w-5 text-[10px] font-bold text-right" style={{ color: "var(--color-fog-text)" }}>{i + 1}</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold" style={{ color: "var(--color-graphite-heading)" }}>{co.name}</p>
+                      <p className="text-[10px]" style={{ color: "var(--color-fog-text)" }}>{co.count} application{co.count !== 1 ? 's' : ''}</p>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize"
+                      style={{ backgroundColor: "var(--color-frost-tint)", color: statusColor[co.bestStatus] ?? "var(--color-steel-text)" }}>
+                      {co.bestStatus}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Skills Growth */}
+        <div className="rounded-xl p-5" style={{ backgroundColor: "var(--color-canvas-white)", boxShadow: "var(--shadow-card)" }}>
+          <h2 className="text-sm font-semibold mb-4" style={{ fontFamily: "var(--font-display)", color: "var(--color-graphite-heading)", letterSpacing: "-0.01em" }}>
+            Skill Coverage
+          </h2>
+          <div className="flex items-center gap-4 mb-4">
+            <div className="relative w-16 h-16 shrink-0">
+              <svg viewBox="0 0 100 100" className="w-16 h-16 -rotate-90">
+                <circle cx="50" cy="50" r="40" fill="none" stroke="var(--color-frost-tint)" strokeWidth="12" />
+                <circle cx="50" cy="50" r="40" fill="none"
+                  stroke={coveragePercent >= 75 ? "#16a34a" : coveragePercent >= 50 ? "#d97706" : "var(--color-sunset-orange)"}
+                  strokeWidth="12"
+                  strokeDasharray={`${(coveragePercent / 100) * 251} 251`}
+                  strokeLinecap="round" />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-bold" style={{ color: "var(--color-graphite-heading)" }}>{coveragePercent}%</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs" style={{ color: "var(--color-slate-body)" }}>
+                <strong style={{ color: "var(--color-graphite-heading)" }}>{matchedCount}</strong> of{" "}
+                <strong style={{ color: "var(--color-graphite-heading)" }}>{totalUnique}</strong> required skills
+              </p>
+              {skillsLearned.length > 0 && (
+                <p className="text-[10px] mt-1" style={{ color: "#16a34a" }}>+{skillsLearned.length} skills added recently</p>
+              )}
+            </div>
+          </div>
+          {skillsLearned.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--color-fog-text)" }}>Recently added</p>
+              <div className="flex flex-wrap gap-1">
+                {skillsLearned.slice(0, 6).map(s => (
+                  <span key={s} className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ backgroundColor: "#dcfce7", color: "#166534" }}>{s}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* AI Insights */}
       {(insight.insight || insight.recommendation) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {insight.insight && (

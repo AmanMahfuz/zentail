@@ -21,6 +21,9 @@ export const onboardingSchema = z
     experienceLevel: z.enum(experienceLevels),
     experienceYears: z.coerce.number().int().min(0).max(50),
     locationPreference: z.string().trim().min(2).max(120),
+    skills: z.array(z.string().trim().min(1)).max(20).default([]),
+    salaryMin: z.coerce.number().min(0).max(500).optional(),
+    salaryMax: z.coerce.number().min(0).max(500).optional(),
     workPreference: z
       .array(z.enum(["remote", "hybrid", "onsite"]))
       .max(3)
@@ -42,6 +45,15 @@ export const onboardingSchema = z
         code: z.ZodIssueCode.custom,
         path: ["primaryTargetRole"],
         message: "Primary role must be one of your selected roles.",
+      });
+    }
+
+    // Salary validation
+    if (data.salaryMin !== undefined && data.salaryMax !== undefined && data.salaryMin > data.salaryMax) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["salaryMin"],
+        message: "Minimum salary cannot be greater than maximum.",
       });
     }
 

@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { UploadCloud, FileText, Loader2 } from "lucide-react";
 import { uploadResume } from "@/lib/actions/resumes";
 
-export function UploadResumeModal() {
+export function UploadResumeModal({ children }: { children?: React.ReactElement }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,11 +39,13 @@ export function UploadResumeModal() {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger 
+      <DialogTrigger
         render={
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm h-11 px-6">
-            <UploadCloud className="w-5 h-5 mr-2" /> Upload Resume
-          </Button>
+          children || (
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm h-11 px-6">
+              <UploadCloud className="w-5 h-5 mr-2" /> Upload Resume
+            </Button>
+          )
         }
       />
       <DialogContent className="sm:max-w-md">

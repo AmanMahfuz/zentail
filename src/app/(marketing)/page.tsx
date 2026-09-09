@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Play, ArrowRight, BarChart3, FileText, CheckCircle2, LayoutDashboard, Search, Users, FileBarChart, Zap, FileSpreadsheet, FileQuestion, LineChart } from "lucide-react"
+import { Play, ArrowRight, BarChart3, FileText, CheckCircle2, LayoutDashboard, Search, Users, FileBarChart, Zap, FileSpreadsheet, FileQuestion, LineChart, XCircle } from "lucide-react"
 import { motion } from "framer-motion"
 
 // Animation variants
@@ -76,32 +76,35 @@ export default function LandingPage() {
                 <motion.div variants={fadeUp} className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50/50 backdrop-blur-sm px-4 py-1.5 text-sm text-blue-700 font-medium w-max shadow-sm">
                   <span className="flex h-2 w-2 rounded-full bg-blue-600 mr-2 animate-ping" style={{ animationDuration: '3s' }}></span>
                   <span className="absolute flex h-2 w-2 rounded-full bg-blue-600 mr-2"></span>
-                  The #1 Platform for Students
+                  Used by 5000+ students in placement season
                 </motion.div>
                 
                 <motion.h1 variants={fadeUp} className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-slate-900 leading-[1.05]">
-                  Master Your <br className="hidden sm:block" />
+                  Your AI <br className="hidden sm:block" />
                   <span className="relative inline-block mt-2">
                     <span className="relative z-10 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Job Search</span>
                     <svg className="absolute w-full h-4 -bottom-1 left-0 text-blue-400/40 z-0" viewBox="0 0 100 10" preserveAspectRatio="none">
                       <path d="M0 5 Q 50 10 100 5" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
                     </svg>
                   </span>
+                  <br className="hidden sm:block" />
+                  Automation Platform
                 </motion.h1>
                 
                 <motion.p variants={fadeUp} className="text-lg md:text-xl text-slate-600 leading-relaxed font-light">
-                  Turn the chaos of applying into a strategic advantage. Track applications, manage resumes, and crush interviews with organized precision.
+                  Apply to 100+ jobs &rarr; Get hired with data. <br/>
+                  Track everything. AI tailors everything.
                 </motion.p>
                 
                 <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-4 pt-4">
                   <Link href="/signup">
                     <Button size="lg" className="w-full sm:w-auto font-semibold h-14 px-8 bg-blue-600 hover:bg-blue-700 rounded-full text-base shadow-xl shadow-blue-500/25 transition-all hover:shadow-blue-500/40 hover:-translate-y-1">
-                      Start Tracking for Free <ArrowRight className="ml-2 h-5 w-5" />
+                      Get Started <ArrowRight className="ml-2 h-5 w-5" />
                     </Button>
                   </Link>
                   <Link href="#how-it-works">
                     <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-8 rounded-full text-base border-slate-200 hover:bg-slate-50 text-slate-700 transition-all hover:border-slate-300">
-                      <Play className="mr-2 h-5 w-5 text-blue-500 fill-blue-500/20" /> See How it Works
+                      <Play className="mr-2 h-5 w-5 text-blue-500 fill-blue-500/20" /> Watch Demo
                     </Button>
                   </Link>
                 </motion.div>
@@ -238,23 +241,40 @@ export default function LandingPage() {
               whileInView="visible"
               viewport={{ once: true, margin: "-100px" }}
               variants={staggerContainer}
-              className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto"
+              className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto"
             >
-              {[
-                { icon: FileSpreadsheet, title: "Spreadsheet Hell", desc: "Manually updating rows and columns is tedious and error-prone.", color: "red" },
-                { icon: FileQuestion, title: "Lost Resumes", desc: "Forgetting which version of your resume you sent to which company.", color: "amber" },
-                { icon: LineChart, title: "Zero Insights", desc: "Getting rejected without understanding why or how to improve.", color: "slate" }
-              ].map((item, i) => (
-                <motion.div key={i} variants={fadeUp} whileHover={{ y: -5 }} className="bg-white p-8 rounded-3xl shadow-sm hover:shadow-xl hover:shadow-slate-200/40 transition-all duration-300 border border-slate-100 text-center flex flex-col items-center group">
-                  <div className={`w-14 h-14 bg-${item.color}-50 text-${item.color}-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
-                    <item.icon className="w-7 h-7" />
+              {/* BEFORE */}
+              <motion.div variants={fadeUp} className="bg-white p-8 rounded-3xl shadow-sm border border-red-100 flex flex-col">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center">
+                    <XCircle className="w-5 h-5" />
                   </div>
-                  <h3 className="text-xl font-bold mb-3 text-slate-800">{item.title}</h3>
-                  <p className="text-slate-500 text-sm leading-relaxed font-light">
-                    {item.desc}
-                  </p>
-                </motion.div>
-              ))}
+                  <h3 className="text-xl font-bold text-slate-800">Before Zentail</h3>
+                </div>
+                <ul className="space-y-4">
+                  <li className="flex items-start text-slate-600"><XCircle className="w-5 h-5 text-red-400 mr-3 shrink-0 mt-0.5" /> 50+ applications in messy spreadsheets</li>
+                  <li className="flex items-start text-slate-600"><XCircle className="w-5 h-5 text-red-400 mr-3 shrink-0 mt-0.5" /> No tracking, just lost bookmarks</li>
+                  <li className="flex items-start text-slate-600"><XCircle className="w-5 h-5 text-red-400 mr-3 shrink-0 mt-0.5" /> Same resume sent everywhere</li>
+                  <li className="flex items-start text-slate-600"><XCircle className="w-5 h-5 text-red-400 mr-3 shrink-0 mt-0.5" /> No prep time, failing interviews</li>
+                </ul>
+              </motion.div>
+
+              {/* AFTER */}
+              <motion.div variants={fadeUp} className="bg-gradient-to-b from-emerald-50/50 to-white p-8 rounded-3xl shadow-lg shadow-emerald-900/5 border border-emerald-100 flex flex-col relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-emerald-500"></div>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-800">With Zentail</h3>
+                </div>
+                <ul className="space-y-4">
+                  <li className="flex items-start text-slate-700 font-medium"><CheckCircle2 className="w-5 h-5 text-emerald-500 mr-3 shrink-0 mt-0.5" /> One unified visual dashboard</li>
+                  <li className="flex items-start text-slate-700 font-medium"><CheckCircle2 className="w-5 h-5 text-emerald-500 mr-3 shrink-0 mt-0.5" /> Full visibility into every application</li>
+                  <li className="flex items-start text-slate-700 font-medium"><CheckCircle2 className="w-5 h-5 text-emerald-500 mr-3 shrink-0 mt-0.5" /> AI tailored resume per job</li>
+                  <li className="flex items-start text-slate-700 font-medium"><CheckCircle2 className="w-5 h-5 text-emerald-500 mr-3 shrink-0 mt-0.5" /> Automated AI interview prep</li>
+                </ul>
+              </motion.div>
             </motion.div>
           </div>
         </section>

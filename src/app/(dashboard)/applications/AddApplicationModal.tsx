@@ -101,7 +101,7 @@ export function AddApplicationModal({ resumes = [] }: { resumes?: { id: string; 
             <button type="button" onClick={() => { setIsOpen(false); resetForm(); }} className="text-slate-400 hover:text-slate-600 text-2xl font-light">&times;</button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-4 flex flex-col">
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 flex flex-col flex-1 overflow-y-auto">
             {error && <div className="text-red-500 text-sm bg-red-50 p-3 rounded-lg">{error}</div>}
 
             <div className="space-y-4">
@@ -118,7 +118,7 @@ export function AddApplicationModal({ resumes = [] }: { resumes?: { id: string; 
                   value={jobDescription}
                   onChange={(e) => setJobDescription(e.target.value)}
                   placeholder="Paste the raw text of the job description here..."
-                  className="h-[200px] min-h-[200px] max-h-[200px] resize-none overflow-y-auto text-sm bg-slate-50"
+                  className="h-[120px] min-h-[120px] max-h-[120px] resize-none overflow-y-auto text-sm bg-slate-50"
                   style={{ fieldSizing: "fixed" } as any}
                 />
                 <button
@@ -152,7 +152,7 @@ export function AddApplicationModal({ resumes = [] }: { resumes?: { id: string; 
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select value={initialStatus || "saved"} onValueChange={setInitialStatus}>
-                  <SelectTrigger className="w-full h-10 bg-white">
+                  <SelectTrigger className="w-full h-12 bg-white rounded-xl border-slate-200 shadow-sm text-sm focus:ring-2 focus:ring-blue-500/20 transition-all">
                     <SelectValue>
                       {(val: string | null) => {
                         const map: Record<string, string> = { saved: "Saved", applied: "Applied", assessment: "Assessment", interview: "Interview", offer: "Offer" };

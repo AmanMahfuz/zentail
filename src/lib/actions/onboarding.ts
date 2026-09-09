@@ -21,6 +21,9 @@ export async function completeOnboarding(
     experienceLevel: String(formData.get("experienceLevel") ?? ""),
     experienceYears: formData.get("experienceYears"),
     locationPreference: String(formData.get("locationPreference") ?? ""),
+    skills: JSON.parse(String(formData.get("skills") ?? "[]")),
+    salaryMin: formData.get("salaryMin") ? Number(formData.get("salaryMin")) : undefined,
+    salaryMax: formData.get("salaryMax") ? Number(formData.get("salaryMax")) : undefined,
     workPreference: JSON.parse(String(formData.get("workPreference") ?? "[]")),
     linkedinUrl: String(formData.get("linkedinUrl") ?? ""),
   };
@@ -58,6 +61,10 @@ export async function completeOnboarding(
       experience_level: parsed.data.experienceLevel,
       experience_years: parsed.data.experienceYears,
       location_preference: parsed.data.locationPreference,
+      skills: parsed.data.skills,
+      salary_min: parsed.data.salaryMin ?? null,
+      salary_max: parsed.data.salaryMax ?? null,
+      work_preference: Array.isArray(parsed.data.workPreference) ? parsed.data.workPreference.join(",") : parsed.data.workPreference,
       linkedin_url: parsed.data.linkedinUrl || null,
       onboarding_completed: true,
       onboarding_completed_at: new Date().toISOString(),
@@ -66,6 +73,7 @@ export async function completeOnboarding(
     .eq("id", user.id);
 
   if (error) {
+    console.error("Profile save error:", error);
     return {
       success: false,
       message: "Your profile could not be saved. Please try again.",
