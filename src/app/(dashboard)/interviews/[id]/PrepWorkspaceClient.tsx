@@ -3,36 +3,19 @@
 import { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { format, differenceInDays, differenceInHours, differenceInMinutes } from "date-fns";
-import { ChevronLeft, Calendar, Building2, BrainCircuit, CheckSquare, MessageSquare, Briefcase, Play, ExternalLink, Layers, ChevronRight, ChevronLeft as ChevLeft, RotateCcw, Check, SkipForward } from "lucide-react";
+import { ChevronLeft, Calendar, Building2, BrainCircuit, CheckSquare, MessageSquare, Briefcase, Play, ExternalLink, Layers, ChevronRight, ChevronLeft as ChevLeft, RotateCcw, Check, SkipForward, ArrowLeft, Edit3, Video, Info, FileText, Monitor, Clock as ClockIcon, Download } from "lucide-react";
 import { generateAITopics, evaluateAIPracticeAnswer, updateChecklist } from "@/lib/actions/interviews";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { HardwarePreflight } from "../../applications/[id]/interview/components/HardwarePreflight";
+import { InterviewHero } from "../../applications/[id]/interview/components/InterviewHero";
+import { PipelineCountdown } from "../../applications/[id]/interview/components/PipelineCountdown";
 
-export default function PrepWorkspaceClient({ interview, prep }: { interview: any; prep: any }) {
+export default function PrepWorkspaceClient({ interview, prep }: { interview?: any; prep?: any }) {
   const [activeTab, setActiveTab] = useState("topics");
   
-  // Timer state
-  const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number } | null>(null);
-
-  useEffect(() => {
-    const target = new Date(interview.scheduled_at);
-    const updateTimer = () => {
-      const now = new Date();
-      if (target <= now) {
-        setTimeLeft({ d: 0, h: 0, m: 0 });
-        return;
-      }
-      setTimeLeft({
-        d: differenceInDays(target, now),
-        h: differenceInHours(target, now) % 24,
-        m: differenceInMinutes(target, now) % 60,
-      });
-    };
-    updateTimer();
-    const interval = setInterval(updateTimer, 60000);
-    return () => clearInterval(interval);
-  }, [interview.scheduled_at]);
-
   const tabs = [
     { id: "topics", label: "AI Topics", icon: BrainCircuit },
     { id: "qa", label: "Q&A Practice", icon: MessageSquare },
@@ -41,89 +24,142 @@ export default function PrepWorkspaceClient({ interview, prep }: { interview: an
   ];
 
   return (
-    <div className="max-w-5xl space-y-8 pb-12">
-      {/* Header */}
-      <div>
-        <Link href="/interviews" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 mb-4 transition-colors">
-          <ChevronLeft className="w-4 h-4" /> Back to Interviews
-        </Link>
-        <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-blue-100 text-blue-700 text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded border border-blue-200">
-                Round {interview.round} ({interview.interview_type})
-              </div>
-            </div>
-            <h1 className="text-3xl font-black text-slate-900 leading-tight">
-              {interview.applications?.jobs?.company || "Unknown Company"}
-            </h1>
-            <p className="text-lg text-slate-600 font-medium flex items-center gap-2 mt-1">
-              <Briefcase className="w-4 h-4 text-slate-400" /> {interview.applications?.jobs?.title || "Unknown Role"}
-            </p>
-          </div>
-          
-          {/* Countdown Card */}
-          {timeLeft && (
-            <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-4 flex items-center gap-6 shrink-0">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5" /> Scheduled For
-                </p>
-                <p className="text-sm font-semibold text-slate-900">
-                  {format(new Date(interview.scheduled_at), "MMM d, yyyy 'at' h:mm a")}
-                </p>
-              </div>
-              <div className="w-px h-10 bg-slate-100"></div>
-              <div className="flex gap-3">
-                <div className="text-center"><p className="text-xl font-black text-slate-900 leading-none">{timeLeft.d}</p><p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Days</p></div>
-                <div className="text-center text-slate-300 font-black text-xl">:</div>
-                <div className="text-center"><p className="text-xl font-black text-slate-900 leading-none">{timeLeft.h}</p><p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Hrs</p></div>
-                <div className="text-center text-slate-300 font-black text-xl">:</div>
-                <div className="text-center"><p className="text-xl font-black text-blue-600 leading-none">{timeLeft.m}</p><p className="text-[10px] text-blue-400 uppercase tracking-widest mt-1">Min</p></div>
-              </div>
-            </div>
-          )}
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+      {/* Top Header Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+        <Button variant="ghost" className="text-slate-600 hover:text-slate-900" onClick={() => window.location.href = '/interviews'}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Interviews
+        </Button>
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
+          <Button variant="outline" className="bg-white text-slate-700 border-slate-200">
+            <Edit3 className="w-4 h-4 mr-2" />
+            Add Notes
+          </Button>
+          <Button variant="outline" className="bg-white text-slate-700 border-slate-200">
+            <Calendar className="w-4 h-4 mr-2" />
+            Reschedule
+          </Button>
+          <Button className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
+            <Video className="w-4 h-4 mr-2" />
+            Join Meeting
+          </Button>
         </div>
       </div>
 
-      {/* Workspace Tabs */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[500px] flex flex-col">
-        <div className="flex border-b border-slate-100 bg-slate-50/50 px-2 pt-2">
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              className={`flex items-center gap-2 px-6 py-4 text-sm font-semibold transition-all border-b-2 ${
-                activeTab === t.id ? "border-blue-600 text-blue-700 bg-white rounded-t-xl shadow-[0_-4px_10px_-5px_rgba(0,0,0,0.05)]" : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-100/50 rounded-t-xl"
-              }`}
-            >
-              <t.icon className={`w-4 h-4 ${activeTab === t.id ? "text-blue-600" : "text-slate-400"}`} /> {t.label}
-            </button>
-          ))}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left Column (Main Content) - 70% */}
+        <div className="lg:col-span-8 space-y-6">
+          <InterviewHero 
+            jobTitle={"Full Stack Developer Intern"} 
+            company={"F6 IT Services Private Limited"} 
+          />
+
+          <div className="space-y-6">
+            {/* Tab Navigation */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              {tabs.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap ${
+                    activeTab === t.id 
+                      ? "bg-indigo-600 text-white shadow-sm" 
+                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <t.icon className="w-4 h-4" />
+                  {t.label}
+                  {activeTab === t.id && <div className="w-1.5 h-1.5 rounded-full bg-white ml-1"></div>}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Content */}
+            <div className="bg-white rounded-xl p-6 md:p-8 shadow-sm border border-slate-200">
+              {activeTab === "topics" && <TopicsTab prep={prep} interview={interview} />}
+              {activeTab === "qa" && <QATab prep={prep} />}
+              {activeTab === "flashcards" && <FlashcardsTab prep={prep} />}
+              {activeTab === "checklist" && <ChecklistTab prep={prep} interviewId={interview?.id} />}
+            </div>
+          </div>
         </div>
-        
-        <div className="p-8 flex-1 bg-white">
-          {activeTab === "topics" && <TopicsTab prep={prep} interview={interview} />}
-          {activeTab === "qa" && <QATab prep={prep} />}
-          {activeTab === "flashcards" && <FlashcardsTab prep={prep} />}
-          {activeTab === "checklist" && <ChecklistTab prep={prep} interviewId={interview.id} />}
+
+        {/* Right Column (Sidebar) - 30% */}
+        <div className="lg:col-span-4 space-y-6">
+          <PipelineCountdown />
+          
+          <Card className="border-slate-200 shadow-sm mb-6">
+            <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Info className="w-4 h-4 text-indigo-500" />
+                Interview Context
+              </CardTitle>
+              <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-none px-2 py-0.5 text-[10px] tracking-wider uppercase">
+                Confirmed
+              </Badge>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-5">
+              <div className="space-y-1">
+                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  Format & Type
+                </h4>
+                <p className="text-sm text-slate-800">
+                  {interview.interview_type} (60 min) — Live Coding & Architecture
+                </p>
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  Application Status
+                </h4>
+                <div className="flex items-center gap-1.5 text-sm text-slate-800">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  Interview Round {interview.round} of 3
+                </div>
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  Host Platform
+                </h4>
+                <p className="text-sm text-slate-800">
+                  Google Meet (Code shared via CollabPad)
+                </p>
+              </div>
+              <div className="space-y-2">
+                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  Attached Resume
+                </h4>
+                <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-100 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                    <span className="text-xs font-medium text-slate-700 truncate max-w-[150px]">
+                      Aman_Resume_FullStack.pdf
+                    </span>
+                  </div>
+                  <Download className="w-4 h-4 text-slate-400 cursor-pointer hover:text-slate-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <HardwarePreflight />
         </div>
       </div>
     </div>
   );
 }
 
-function TopicsTab({ prep, interview }: { prep: any; interview: any }) {
+function TopicsTab({ prep, interview }: { prep: any; interview?: any }) {
   const [topics, setTopics] = useState<string[]>(prep?.topics || []);
   const [isGenerating, startTransition] = useTransition();
 
   const handleGenerate = () => {
     startTransition(async () => {
       const res = await generateAITopics(
-        interview.id, 
-        interview.applications?.jobs?.title || "", 
-        interview.applications?.jobs?.company || "",
-        interview.applications?.jobs?.description || ""
+        interview?.id || "mock-id", 
+        interview?.applications?.jobs?.title || "", 
+        interview?.applications?.jobs?.company || "",
+        interview?.applications?.jobs?.description || ""
       );
       if (res.success && res.topics) {
         setTopics(res.topics);
@@ -171,7 +207,8 @@ function TopicsTab({ prep, interview }: { prep: any; interview: any }) {
 function QATab({ prep }: { prep: any }) {
   const [question, setQuestion] = useState("Tell me about a time you faced a difficult technical challenge.");
   const [answer, setAnswer] = useState("");
-  const [feedback, setFeedback] = useState<{ score: number; feedback: string } | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [feedback, setFeedback] = useState<{ score: number; feedback: string; structure?: string; clarity?: string; relevance?: string; missing_evidence?: string } | null>(null);
   const [isEvaluating, startTransition] = useTransition();
 
   const handleEvaluate = () => {
@@ -200,13 +237,24 @@ function QATab({ prep }: { prep: any }) {
             <option>Describe your most impactful project.</option>
           </select>
         </div>
-        <div className="space-y-2">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Your Answer</label>
+        <div className="space-y-2 relative">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Your Answer</label>
+            <Button 
+              size="sm" 
+              variant={isRecording ? "destructive" : "outline"} 
+              className={`h-7 px-3 text-[10px] ${isRecording ? 'animate-pulse' : ''}`}
+              onClick={() => setIsRecording(!isRecording)}
+            >
+              {isRecording ? "Stop Recording" : "Record Answer (Mock)"}
+            </Button>
+          </div>
           <Textarea 
             value={answer}
             onChange={e => setAnswer(e.target.value)}
-            placeholder="Type your answer here using the STAR method (Situation, Task, Action, Result)..."
+            placeholder={isRecording ? "Listening..." : "Type your answer here using the STAR method (Situation, Task, Action, Result)..."}
             className="min-h-[250px] resize-none"
+            disabled={isRecording}
           />
         </div>
         <Button onClick={handleEvaluate} disabled={isEvaluating || !answer.trim()} className="w-full bg-slate-900 hover:bg-slate-800">
@@ -239,8 +287,35 @@ function QATab({ prep }: { prep: any }) {
                 </p>
               </div>
             </div>
-            <div className="p-5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 leading-relaxed font-medium">
+            <div className="p-5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 leading-relaxed font-medium mb-4">
               {feedback.feedback}
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mt-4">
+              {feedback.structure && (
+                <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                  <span className="font-bold text-indigo-600 block mb-1">Structure (STAR)</span>
+                  <span className="text-slate-600">{feedback.structure}</span>
+                </div>
+              )}
+              {feedback.clarity && (
+                <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                  <span className="font-bold text-blue-600 block mb-1">Clarity</span>
+                  <span className="text-slate-600">{feedback.clarity}</span>
+                </div>
+              )}
+              {feedback.relevance && (
+                <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                  <span className="font-bold text-emerald-600 block mb-1">Relevance</span>
+                  <span className="text-slate-600">{feedback.relevance}</span>
+                </div>
+              )}
+              {feedback.missing_evidence && (
+                <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                  <span className="font-bold text-amber-600 block mb-1">Missing Evidence</span>
+                  <span className="text-slate-600">{feedback.missing_evidence}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -249,13 +324,15 @@ function QATab({ prep }: { prep: any }) {
   );
 }
 
-function ChecklistTab({ prep, interviewId }: { prep: any; interviewId: string }) {
+function ChecklistTab({ prep, interviewId }: { prep: any; interviewId?: string }) {
   const [items, setItems] = useState<any[]>(prep?.checklist || []);
 
   const toggle = async (id: string) => {
     const newItems = items.map(i => i.id === id ? { ...i, completed: !i.completed } : i);
     setItems(newItems);
-    await updateChecklist(interviewId, newItems);
+    if (interviewId) {
+      await updateChecklist(interviewId, newItems);
+    }
   };
 
   return (

@@ -24,6 +24,9 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { ApplicationStatus, updateApplicationStatus } from "@/lib/actions/applications";
 import { ApplicationDetailsSheet } from "./ApplicationDetailsSheet";
+import { AddInterviewModal } from "./AddInterviewModal";
+import { getNextAction } from "@/lib/utils/next-action";
+import { RecordOutcomeModal } from "./RecordOutcomeModal";
 
 // --- Types ---
 type KanbanApplication = {
@@ -52,16 +55,15 @@ const STATUS_COLUMNS: {
   emptyTitle: string;
   emptyDesc: string;
 }[] = [
-  { id: "saved", title: "Saved", emptyIcon: Bookmark, emptyTitle: "No saved jobs yet", emptyDesc: "Drag prospective postings here or add new manually." },
+  { id: "analyzing", title: "Analyzing", emptyIcon: Target, emptyTitle: "No jobs analyzing", emptyDesc: "AI is processing requirements." },
+  { id: "review_needed", title: "Review Needed", emptyIcon: Bookmark, emptyTitle: "No reviews pending", emptyDesc: "Jobs awaiting your review will appear here." },
   { id: "applied", title: "Applied", emptyIcon: Send, emptyTitle: "No active applications", emptyDesc: "Sent your resume? Shift opportunities to this lane." },
-  { id: "assessment", title: "Assessment", emptyIcon: Target, emptyTitle: "No pending tests", emptyDesc: "Online coding tasks and assignments go here." },
-  { id: "interview", title: "Interview", emptyIcon: MessageSquare, emptyTitle: "No interviews", emptyDesc: "Track your ongoing interview rounds here." },
-  { id: "offer", title: "Offer", emptyIcon: CheckCircle2, emptyTitle: "No offers yet", emptyDesc: "Accepted or pending offers will appear here." },
-  { id: "rejected", title: "Rejected", emptyIcon: XCircle, emptyTitle: "No rejections", emptyDesc: "Closed opportunities." },
+  { id: "interviewing", title: "Interviewing", emptyIcon: MessageSquare, emptyTitle: "No interviews", emptyDesc: "Track your ongoing interview rounds here." },
+  { id: "outcome", title: "Outcome", emptyIcon: CheckCircle2, emptyTitle: "No outcomes yet", emptyDesc: "Offer, Rejected, or Ghosted." },
 ];
 
 // --- Sortable Item Component ---
-function SortableAppCard({ app, onClick }: { app: KanbanApplication, onClick: (app: KanbanApplication) => void }) {
+function SortableAppCard({ app, onClick, onRecordOutcome }: { app: KanbanApplication, onClick: (app: KanbanApplication) => void, onRecordOutcome: (app: KanbanApplication) => void }) {
   const {
     attributes,
     listeners,
@@ -127,6 +129,32 @@ function SortableAppCard({ app, onClick }: { app: KanbanApplication, onClick: (a
           <span className="w-1.5 h-1.5 rounded-full bg-slate-300" title="Has notes" />
         )}
       </div>
+
+      {/* Next Action */}
+      {(() => {
+        const daysSinceApplied = app.applied_at ? Math.floor((Date.now() - new Date(app.applied_at).getTime()) / (1000 * 3600 * 24)) : 0;
+        const action = getNextAction(app, daysSinceApplied, null);
+        if (action.urgency === 'none') return null;
+
+        const colorClass = action.urgency === 'high' ? 'bg-red-50 text-red-700 border-red-100' :
+                           action.urgency === 'medium' ? 'bg-orange-50 text-orange-700 border-orange-100' :
+                           'bg-blue-50 text-blue-700 border-blue-100';
+
+        return (
+          <div 
+            className={`mt-3 p-2 rounded border text-xs font-medium cursor-pointer \${colorClass}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (action.action.includes("outcome") || action.action.includes("feedback")) {
+                onRecordOutcome(app);
+              }
+              // handle other actions...
+            }}
+          >
+            → {action.action}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -137,11 +165,13 @@ import { useDroppable } from "@dnd-kit/core";
 function DroppableColumn({ 
   col, 
   columnApps, 
-  setDetailsApp 
+  setDetailsApp,
+  onRecordOutcome
 }: { 
   col: typeof STATUS_COLUMNS[0], 
   columnApps: KanbanApplication[],
-  setDetailsApp: (app: KanbanApplication) => void 
+  setDetailsApp: (app: KanbanApplication) => void,
+  onRecordOutcome: (app: KanbanApplication) => void
 }) {
   const { setNodeRef } = useDroppable({
     id: col.id,
@@ -175,7 +205,7 @@ function DroppableColumn({
               </div>
             ) : (
               columnApps.map((app) => (
-                <SortableAppCard key={app.id} app={app} onClick={setDetailsApp} />
+                <SortableAppCard key={app.id} app={app} onClick={setDetailsApp} onRecordOutcome={onRecordOutcome} />
               ))
             )}
           </div>
@@ -190,6 +220,8 @@ export function ApplicationsKanban({ initialApplications }: { initialApplication
   const [applications, setApplications] = useState<KanbanApplication[]>(initialApplications);
   const [activeApp, setActiveApp] = useState<KanbanApplication | null>(null);
   const [detailsApp, setDetailsApp] = useState<KanbanApplication | null>(null);
+  const [outcomeApp, setOutcomeApp] = useState<KanbanApplication | null>(null);
+  const [pendingInterviewAppId, setPendingInterviewAppId] = useState<string | null>(null);
 
   // Sync state when Server Component re-fetches data (e.g. after revalidatePath)
   useEffect(() => {
@@ -258,19 +290,36 @@ export function ApplicationsKanban({ initialApplications }: { initialApplication
     if (!over) return;
 
     const activeId = active.id as string;
-    const app = applications.find((a) => a.id === activeId);
+    const overId = over.id as string;
     
-    if (app) {
-      // Optimistic update has already happened in dragOver, we just need to persist
-      // We check if it changed status from original
-      const originalApp = initialApplications.find(a => a.id === activeId);
-      if (originalApp && originalApp.status !== app.status) {
-        const result = await updateApplicationStatus(activeId, app.status);
-        if (!result.success) {
-          // Revert on failure
-          setApplications(initialApplications);
-          alert(result.message || "Failed to update status");
-        }
+    // Determine the final status directly from the over target
+    let finalStatus: ApplicationStatus | null = null;
+    const isOverColumn = over.data.current?.type === "Column" || STATUS_COLUMNS.some((c) => c.id === overId);
+    
+    if (isOverColumn) {
+      finalStatus = overId as ApplicationStatus;
+    } else if (over.data.current?.type === "Application") {
+      // It was dropped over another application, so it takes that application's status
+      const overApp = initialApplications.find(a => a.id === overId) || applications.find(a => a.id === overId);
+      if (overApp) finalStatus = overApp.status;
+    }
+
+    if (!finalStatus) return;
+    
+    const originalApp = initialApplications.find(a => a.id === activeId);
+    if (originalApp && originalApp.status !== finalStatus) {
+      console.log(`Status changed from ${originalApp.status} to ${finalStatus}`);
+      const result = await updateApplicationStatus(activeId, finalStatus);
+      if (!result.success) {
+        // Revert on failure
+        setApplications(initialApplications);
+        alert(result.message || "Failed to update status");
+      } else if (finalStatus === "interview") {
+        console.log("Successfully moved to interview! Opening modal for", activeId);
+        // Trigger the interview setup modal after a slight delay to let dnd-kit finish cleanup
+        setTimeout(() => {
+          setPendingInterviewAppId(activeId);
+        }, 50);
       }
     }
   };
@@ -287,7 +336,7 @@ export function ApplicationsKanban({ initialApplications }: { initialApplication
         {STATUS_COLUMNS.map((col) => {
           const columnApps = applications.filter((app) => app.status === col.id);
           return (
-            <DroppableColumn key={col.id} col={col} columnApps={columnApps} setDetailsApp={setDetailsApp} />
+            <DroppableColumn key={col.id} col={col} columnApps={columnApps} setDetailsApp={setDetailsApp} onRecordOutcome={setOutcomeApp} />
           );
         })}
       </div>
@@ -305,6 +354,22 @@ export function ApplicationsKanban({ initialApplications }: { initialApplication
         app={detailsApp}
         isOpen={!!detailsApp}
         onOpenChange={(open) => !open && setDetailsApp(null)}
+      />
+
+      <AddInterviewModal 
+        applicationId={pendingInterviewAppId || ""} 
+        controlledOpen={!!pendingInterviewAppId} 
+        setControlledOpen={(open) => {
+          if (!open) setPendingInterviewAppId(null);
+        }} 
+      />
+
+      <RecordOutcomeModal 
+        app={outcomeApp} 
+        isOpen={!!outcomeApp} 
+        onOpenChange={(open) => {
+          if (!open) setOutcomeApp(null);
+        }} 
       />
     </DndContext>
   );

@@ -1,12 +1,6 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getInterviews } from "@/lib/actions/interviews";
-import InterviewsClient from "./InterviewsClient";
-
-export const metadata = {
-  title: "Interviews — Zentail",
-  description: "Manage your upcoming interviews and prep workspaces.",
-};
+import { redirect } from "next/navigation";
+import { StandaloneDashboardClient } from "./StandaloneDashboardClient";
 
 export default async function InterviewsPage() {
   const supabase = await createClient();
@@ -14,7 +8,9 @@ export default async function InterviewsPage() {
 
   if (!user) redirect("/signin");
 
-  const res = await getInterviews();
-
-  return <InterviewsClient initialInterviews={res.data || []} />;
+  return (
+    <div className="p-4 md:p-6 lg:p-8 bg-slate-50/50 min-h-screen">
+      <StandaloneDashboardClient />
+    </div>
+  );
 }

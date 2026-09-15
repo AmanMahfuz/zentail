@@ -3,58 +3,23 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { createApplication } from "@/lib/actions/applications";
 import { extractJobDetails } from "@/lib/actions/ai-matching";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export function AddApplicationModal({ resumes = [] }: { resumes?: { id: string; version_tag: string | null }[] }) {
+export function AddApplicationModal({ triggerClassName }: { triggerClassName?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isAutoFilling, setIsAutoFilling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [company, setCompany] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
-  const [location, setLocation] = useState("");
-  const [jobDescription, setJobDescription] = useState("");
   const [jobUrl, setJobUrl] = useState("");
-  const [initialStatus, setInitialStatus] = useState<string | null>("saved");
-  const [resumeId, setResumeId] = useState<string | null>("none");
+  const [jobDescription, setJobDescription] = useState("");
 
-  const resetForm = () => {
-    setCompany("");
-    setJobTitle("");
-    setLocation("");
-    setJobDescription("");
+  function resetForm() {
     setJobUrl("");
-    setInitialStatus("saved");
-    setResumeId("none");
+    setJobDescription("");
     setError(null);
-  };
-
-  async function handleAutoFill() {
-    if ((!jobDescription || jobDescription.length < 20) && !jobUrl) {
-      setError("Please paste a job description or a URL so AI can read it.");
-      return;
-    }
-
-    setIsAutoFilling(true);
-    setError(null);
-
-    // We pass both to the server action
-    const result = await extractJobDetails(jobDescription, jobUrl);
-    if (result.success && result.result) {
-      if (result.result.company) setCompany(result.result.company);
-      if (result.result.jobTitle) setJobTitle(result.result.jobTitle);
-      if (result.result.location) setLocation(result.result.location);
-    } else {
-      setError(result.message || "Failed to extract details automatically.");
-    }
-
-    setIsAutoFilling(false);
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -62,11 +27,34 @@ export function AddApplicationModal({ resumes = [] }: { resumes?: { id: string; 
     setIsSubmitting(true);
     setError(null);
 
-    const formData = new FormData(e.currentTarget);
-    formData.set("initialStatus", initialStatus || "saved");
-    if (resumeId && resumeId !== "none") {
-      formData.set("resumeId", resumeId);
+    if (!jobUrl.trim() && !jobDescription.trim()) {
+      setError("Please paste a job link or description.");
+      setIsSubmitting(false);
+      return;
     }
+
+    const formData = new FormData();
+    formData.set("initialStatus", "saved");
+
+    // Auto-extract details using AI
+    const extractResult = await extractJobDetails(jobDescription, jobUrl);
+    let extractedCompany = "Unknown Company";
+    let extractedTitle = "Unknown Role";
+    let extractedLocation = "";
+
+    if (extractResult.success && extractResult.result) {
+      extractedCompany = extractResult.result.company || extractedCompany;
+      extractedTitle = extractResult.result.jobTitle || extractedTitle;
+      extractedLocation = extractResult.result.location || extractedLocation;
+    } else {
+      console.warn("Auto-fill extraction failed or was incomplete.", extractResult.message);
+    }
+
+    formData.set("company", extractedCompany);
+    formData.set("jobTitle", extractedTitle);
+    formData.set("location", extractedLocation);
+    formData.set("jobUrl", jobUrl);
+    formData.set("jobDescription", jobDescription);
 
     const result = await createApplication({ success: false }, formData);
 
@@ -81,7 +69,7 @@ export function AddApplicationModal({ resumes = [] }: { resumes?: { id: string; 
 
   if (!isOpen) {
     return (
-      <button onClick={() => setIsOpen(true)} className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm h-11 px-6 text-sm font-medium transition-colors">
+      <button onClick={() => setIsOpen(true)} className={triggerClassName || "inline-flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl shadow-sm h-11 px-6 text-sm font-semibold transition-colors"}>
         <Plus className="w-5 h-5 mr-2" /> Add Application
       </button>
     );
@@ -89,117 +77,66 @@ export function AddApplicationModal({ resumes = [] }: { resumes?: { id: string; 
 
   return (
     <>
-      <button onClick={() => setIsOpen(true)} className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm h-11 px-6 text-sm font-medium transition-colors">
+      <button onClick={() => setIsOpen(true)} className={triggerClassName || "inline-flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl shadow-sm h-11 px-6 text-sm font-semibold transition-colors"}>
         <Plus className="w-5 h-5 mr-2" /> Add Application
       </button>
 
       {/* Modal Overlay */}
-      <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-          <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-            <h2 className="text-xl font-bold text-slate-800">Track New Application</h2>
-            <button type="button" onClick={() => { setIsOpen(false); resetForm(); }} className="text-slate-400 hover:text-slate-600 text-2xl font-light">&times;</button>
+      <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="bg-white rounded-[24px] w-full max-w-[420px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+          <div className="px-6 pt-6 pb-2 flex justify-between items-start">
+            <div>
+               <h2 className="text-[22px] font-bold text-[#111827] tracking-tight">Add Application</h2>
+               <p className="text-zinc-500 text-[15px] mt-1">Add a job you want to apply to</p>
+            </div>
+            <button type="button" onClick={() => { setIsOpen(false); resetForm(); }} className="text-zinc-400 hover:text-zinc-600 bg-zinc-100 hover:bg-zinc-200 rounded-full p-2 transition-colors -mr-2">
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-4 flex flex-col flex-1 overflow-y-auto">
-            {error && <div className="text-red-500 text-sm bg-red-50 p-3 rounded-lg">{error}</div>}
+          <form onSubmit={handleSubmit} className="p-6 pt-4 space-y-5 flex flex-col">
+            {error && <div className="text-red-600 text-sm bg-red-50 p-4 rounded-xl border border-red-100 font-medium">{error}</div>}
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="jobUrl">Job Posting URL (Optional)</Label>
-                <Input id="jobUrl" name="jobUrl" type="text" placeholder="https://..." value={jobUrl} onChange={(e) => setJobUrl(e.target.value)} />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="jobDescription">Job Description (Optional)</Label>
                 <Textarea
                   id="jobDescription"
                   name="jobDescription"
                   value={jobDescription}
                   onChange={(e) => setJobDescription(e.target.value)}
-                  placeholder="Paste the raw text of the job description here..."
-                  className="h-[120px] min-h-[120px] max-h-[120px] resize-none overflow-y-auto text-sm bg-slate-50"
+                  placeholder="Paste Description"
+                  className="h-[140px] min-h-[140px] max-h-[240px] resize-none overflow-y-auto text-[15px] bg-zinc-50/80 border-zinc-200 focus-visible:ring-zinc-900 rounded-xl px-4 py-3 placeholder:text-zinc-400"
                   style={{ fieldSizing: "fixed" } as any}
                 />
-                <button
-                  type="button"
-                  onClick={handleAutoFill}
-                  disabled={isAutoFilling}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-wide px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-colors mt-2"
-                >
-                  <Sparkles className={`w-3.5 h-3.5 ${isAutoFilling ? 'animate-pulse' : ''}`} />
-                  {isAutoFilling ? "Extracting..." : "Auto-fill with AI"}
-                </button>
+              </div>
+
+              <div className="flex items-center gap-4 py-1">
+                <div className="h-px bg-zinc-100 flex-1"></div>
+                <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">OR</span>
+                <div className="h-px bg-zinc-100 flex-1"></div>
+              </div>
+
+              <div className="space-y-2">
+                <Input 
+                   id="jobUrl" 
+                   name="jobUrl" 
+                   type="text" 
+                   placeholder="Paste Link" 
+                   value={jobUrl} 
+                   onChange={(e) => setJobUrl(e.target.value)} 
+                   className="h-12 bg-zinc-50/80 border-zinc-200 focus-visible:ring-zinc-900 rounded-xl px-4 text-[15px] placeholder:text-zinc-400"
+                />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-2">
-              <div className="space-y-2">
-                <Label htmlFor="company">Company <span className="text-red-500">*</span></Label>
-                <Input id="company" name="company" required placeholder="e.g. Acme Corp" value={company} onChange={(e) => setCompany(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="jobTitle">Job Title <span className="text-red-500">*</span></Label>
-                <Input id="jobTitle" name="jobTitle" required placeholder="e.g. Frontend Engineer" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
-                <Input id="location" name="location" placeholder="e.g. Remote, SF" value={location} onChange={(e) => setLocation(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={initialStatus || "saved"} onValueChange={setInitialStatus}>
-                  <SelectTrigger className="w-full h-12 bg-white rounded-xl border-slate-200 shadow-sm text-sm focus:ring-2 focus:ring-blue-500/20 transition-all">
-                    <SelectValue>
-                      {(val: string | null) => {
-                        const map: Record<string, string> = { saved: "Saved", applied: "Applied", assessment: "Assessment", interview: "Interview", offer: "Offer" };
-                        return map[val || "saved"] || "Status";
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="saved" label="Saved">Saved</SelectItem>
-                    <SelectItem value="applied" label="Applied">Applied</SelectItem>
-                    <SelectItem value="assessment" label="Assessment">Assessment</SelectItem>
-                    <SelectItem value="interview" label="Interview">Interview</SelectItem>
-                    <SelectItem value="offer" label="Offer">Offer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2 pt-2">
-              <Label>Resume Used (Optional)</Label>
-              <Select value={resumeId || "none"} onValueChange={setResumeId}>
-                <SelectTrigger className="w-full h-10 bg-white">
-                  <SelectValue>
-                    {(val: string | null) => {
-                      if (!val || val === "none") return "No Resume Tracked";
-                      const r = resumes?.find(r => r.id === val);
-                      return r ? (r.version_tag || "Default") : "Select a resume";
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none" label="No Resume Tracked">No Resume Tracked</SelectItem>
-                  {resumes?.map((r) => {
-                    const label = r.version_tag || "Default";
-                    return <SelectItem key={r.id} value={r.id} label={label}>{label}</SelectItem>;
-                  })}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-slate-500">Track which resume you applied with to see your analytics.</p>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-6">
-              <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white">
-                {isSubmitting ? "Saving..." : "Save Application"}
-              </Button>
-            </div>
+            <Button type="submit" disabled={isSubmitting} className="w-full h-12 rounded-xl bg-[#5e4cff] hover:bg-[#4b3cce] text-white font-semibold text-[15px] mt-4 transition-all">
+              {isSubmitting ? (
+                 <span className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                 </span>
+              ) : "Quick Add"}
+            </Button>
           </form>
         </div>
       </div>

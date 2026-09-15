@@ -199,7 +199,7 @@ export default function AnalyticsClient({
       {(insight.insight || insight.recommendation) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {insight.insight && (
-            <div className="flex gap-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-5">
+            <div className="flex gap-3 bg-zinc-50 border border-zinc-200 rounded-2xl p-5">
               <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center shrink-0 mt-0.5">
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
@@ -210,7 +210,7 @@ export default function AnalyticsClient({
             </div>
           )}
           {insight.recommendation && (
-            <div className="flex gap-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-2xl p-5">
+            <div className="flex gap-3 bg-white border border-zinc-200 rounded-2xl p-5 shadow-sm">
               <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
                 <TrendingUp className="w-4 h-4 text-white" />
               </div>

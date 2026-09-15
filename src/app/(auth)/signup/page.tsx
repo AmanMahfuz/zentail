@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Zap, Check } from "lucide-react";
 import { signupAction } from "@/lib/actions/auth";
 
@@ -20,6 +21,15 @@ function getPasswordStrength(pw: string): { label: string; color: string; bars: 
 }
 
 export default function SignUpPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-zinc-50 flex items-center justify-center">Loading...</div>}>
+      <SignUpForm />
+    </Suspense>
+  );
+}
+
+function SignUpForm() {
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
@@ -74,6 +84,13 @@ export default function SignUpPage() {
             Zentail
           </span>
         </div>
+
+        {searchParams.get("from") === "onboarding" && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5 mb-5 text-sm text-blue-700">
+            <span className="font-semibold mr-1">✓ Your analysis is ready.</span>
+            Create a free account to save it and see the full requirements map.
+          </div>
+        )}
 
         <h1 className="text-2xl font-semibold mb-1" style={{ fontFamily: "var(--font-display)", color: "var(--color-graphite-heading)", letterSpacing: "-0.025em" }}>
           Create your account

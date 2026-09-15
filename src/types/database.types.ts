@@ -17,50 +17,89 @@ export type Database = {
       applications: {
         Row: {
           applied_at: string | null
-          created_at: string
+          company_name: string
+          company_type: string | null
+          created_at: string | null
+          critical_missing: string[] | null
+          fit_level: string | null
+          fit_score: number | null
+          fit_summary: string | null
           id: string
-          job_id: string
-          notes: string | null
-          resume_id: string | null
-          status: Database["public"]["Enums"]["application_status"]
-          updated_at: string
+          improvements: Json | null
+          job_description: string | null
+          job_link: string | null
+          job_title: string
+          matched_skills: string[] | null
+          missing_skills: string[] | null
+          next_action: string | null
+          next_action_link: string | null
+          outcome: string | null
+          partial_skills: string[] | null
+          resume_version_id: string | null
+          status: string | null
           user_id: string
         }
         Insert: {
           applied_at?: string | null
-          created_at?: string
+          company_name: string
+          company_type?: string | null
+          created_at?: string | null
+          critical_missing?: string[] | null
+          fit_level?: string | null
+          fit_score?: number | null
+          fit_summary?: string | null
           id?: string
-          job_id: string
-          notes?: string | null
-          resume_id?: string | null
-          status?: Database["public"]["Enums"]["application_status"]
-          updated_at?: string
+          improvements?: Json | null
+          job_description?: string | null
+          job_link?: string | null
+          job_title: string
+          matched_skills?: string[] | null
+          missing_skills?: string[] | null
+          next_action?: string | null
+          next_action_link?: string | null
+          outcome?: string | null
+          partial_skills?: string[] | null
+          resume_version_id?: string | null
+          status?: string | null
           user_id: string
         }
         Update: {
           applied_at?: string | null
-          created_at?: string
+          company_name?: string
+          company_type?: string | null
+          created_at?: string | null
+          critical_missing?: string[] | null
+          fit_level?: string | null
+          fit_score?: number | null
+          fit_summary?: string | null
           id?: string
-          job_id?: string
-          notes?: string | null
-          resume_id?: string | null
-          status?: Database["public"]["Enums"]["application_status"]
-          updated_at?: string
+          improvements?: Json | null
+          job_description?: string | null
+          job_link?: string | null
+          job_title?: string
+          matched_skills?: string[] | null
+          missing_skills?: string[] | null
+          next_action?: string | null
+          next_action_link?: string | null
+          outcome?: string | null
+          partial_skills?: string[] | null
+          resume_version_id?: string | null
+          status?: string | null
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "applications_job_id_fkey"
-            columns: ["job_id"]
+            foreignKeyName: "applications_resume_version_id_fkey"
+            columns: ["resume_version_id"]
             isOneToOne: false
-            referencedRelation: "jobs"
+            referencedRelation: "resume_versions"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "applications_resume_id_fkey"
-            columns: ["resume_id"]
+            foreignKeyName: "applications_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "resumes"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -102,12 +141,286 @@ export type Database = {
           tone?: string | null
           user_id?: string
         }
+        Relationships: []
+      }
+      evidence_certifications: {
+        Row: {
+          created_at: string | null
+          credential_url: string | null
+          date_obtained: string | null
+          id: string
+          issuer: string | null
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          credential_url?: string | null
+          date_obtained?: string | null
+          id?: string
+          issuer?: string | null
+          name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          credential_url?: string | null
+          date_obtained?: string | null
+          id?: string
+          issuer?: string | null
+          name?: string
+          user_id?: string
+        }
         Relationships: [
           {
-            foreignKeyName: "cover_letters_generated_application_id_fkey"
-            columns: ["application_id"]
+            foreignKeyName: "evidence_certifications_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "applications"
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evidence_education: {
+        Row: {
+          created_at: string | null
+          degree: string | null
+          end_year: number | null
+          field_of_study: string | null
+          grade: string | null
+          id: string
+          institution: string | null
+          is_current: boolean | null
+          sort_order: number | null
+          start_year: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          degree?: string | null
+          end_year?: number | null
+          field_of_study?: string | null
+          grade?: string | null
+          id?: string
+          institution?: string | null
+          is_current?: boolean | null
+          sort_order?: number | null
+          start_year?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          degree?: string | null
+          end_year?: number | null
+          field_of_study?: string | null
+          grade?: string | null
+          id?: string
+          institution?: string | null
+          is_current?: boolean | null
+          sort_order?: number | null
+          start_year?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evidence_education_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evidence_experience: {
+        Row: {
+          bullets: Json | null
+          company: string
+          created_at: string | null
+          description: string | null
+          end_date: string | null
+          id: string
+          is_current: boolean | null
+          job_title: string
+          location: string | null
+          skills_used: string[] | null
+          sort_order: number | null
+          start_date: string | null
+          user_id: string
+        }
+        Insert: {
+          bullets?: Json | null
+          company: string
+          created_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_current?: boolean | null
+          job_title: string
+          location?: string | null
+          skills_used?: string[] | null
+          sort_order?: number | null
+          start_date?: string | null
+          user_id: string
+        }
+        Update: {
+          bullets?: Json | null
+          company?: string
+          created_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_current?: boolean | null
+          job_title?: string
+          location?: string | null
+          skills_used?: string[] | null
+          sort_order?: number | null
+          start_date?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evidence_experience_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evidence_projects: {
+        Row: {
+          bullets: Json | null
+          created_at: string | null
+          description: string | null
+          end_date: string | null
+          github_url: string | null
+          id: string
+          sort_order: number | null
+          start_date: string | null
+          tech_stack: string[] | null
+          title: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          bullets?: Json | null
+          created_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          github_url?: string | null
+          id?: string
+          sort_order?: number | null
+          start_date?: string | null
+          tech_stack?: string[] | null
+          title: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          bullets?: Json | null
+          created_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          github_url?: string | null
+          id?: string
+          sort_order?: number | null
+          start_date?: string | null
+          tech_stack?: string[] | null
+          title?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evidence_projects_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evidence_skills: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          id: string
+          proficiency: string | null
+          proof_description: string | null
+          proof_status: string | null
+          skill_name: string
+          user_id: string
+          years_experience: number | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          id?: string
+          proficiency?: string | null
+          proof_description?: string | null
+          proof_status?: string | null
+          skill_name: string
+          user_id: string
+          years_experience?: number | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          id?: string
+          proficiency?: string | null
+          proof_description?: string | null
+          proof_status?: string | null
+          skill_name?: string
+          user_id?: string
+          years_experience?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evidence_skills_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_answers: {
+        Row: {
+          answer: string
+          answer_type: string | null
+          created_at: string | null
+          id: string
+          question: string
+          question_index: number
+          scores: Json
+          session_id: string | null
+        }
+        Insert: {
+          answer: string
+          answer_type?: string | null
+          created_at?: string | null
+          id?: string
+          question: string
+          question_index: number
+          scores: Json
+          session_id?: string | null
+        }
+        Update: {
+          answer?: string
+          answer_type?: string | null
+          created_at?: string | null
+          id?: string
+          question?: string
+          question_index?: number
+          scores?: Json
+          session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_answers_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "interview_sessions"
             referencedColumns: ["id"]
           },
         ]
@@ -150,6 +463,51 @@ export type Database = {
           },
         ]
       }
+      interview_sessions: {
+        Row: {
+          application_id: string | null
+          completed_at: string | null
+          difficulty: string | null
+          final_report: string | null
+          final_score: number | null
+          id: string
+          mode: string | null
+          questions: Json
+          started_at: string | null
+          status: string | null
+          tracks: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          application_id?: string | null
+          completed_at?: string | null
+          difficulty?: string | null
+          final_report?: string | null
+          final_score?: number | null
+          id?: string
+          mode?: string | null
+          questions: Json
+          started_at?: string | null
+          status?: string | null
+          tracks?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          application_id?: string | null
+          completed_at?: string | null
+          difficulty?: string | null
+          final_report?: string | null
+          final_score?: number | null
+          id?: string
+          mode?: string | null
+          questions?: Json
+          started_at?: string | null
+          status?: string | null
+          tracks?: Json | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       interviews: {
         Row: {
           application_id: string
@@ -181,15 +539,7 @@ export type Database = {
           round?: number
           scheduled_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "interviews_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "applications"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       job_matches: {
         Row: {
@@ -231,13 +581,6 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_matches_resume_id_fkey"
-            columns: ["resume_id"]
-            isOneToOne: false
-            referencedRelation: "resumes"
             referencedColumns: ["id"]
           },
         ]
@@ -580,56 +923,126 @@ export type Database = {
         }
         Relationships: []
       }
-      resumes: {
+      resume_version_changes: {
         Row: {
-          content: Json | null
-          created_at: string
-          file_path: string | null
-          file_url: string
+          changes: Json | null
+          created_at: string | null
+          from_version_id: string | null
           id: string
-          is_default: boolean | null
-          name: string
-          parsed_skills: Json | null
-          parsed_summary: string | null
-          type: string | null
-          updated_at: string | null
-          user_id: string
-          version: number | null
-          version_tag: string | null
+          saved_by: string | null
+          to_version_id: string | null
         }
         Insert: {
-          content?: Json | null
-          created_at?: string
-          file_path?: string | null
-          file_url: string
+          changes?: Json | null
+          created_at?: string | null
+          from_version_id?: string | null
           id?: string
-          is_default?: boolean | null
-          name: string
-          parsed_skills?: Json | null
-          parsed_summary?: string | null
-          type?: string | null
-          updated_at?: string | null
-          user_id: string
-          version?: number | null
-          version_tag?: string | null
+          saved_by?: string | null
+          to_version_id?: string | null
         }
         Update: {
-          content?: Json | null
-          created_at?: string
-          file_path?: string | null
-          file_url?: string
+          changes?: Json | null
+          created_at?: string | null
+          from_version_id?: string | null
           id?: string
-          is_default?: boolean | null
-          name?: string
-          parsed_skills?: Json | null
-          parsed_summary?: string | null
-          type?: string | null
-          updated_at?: string | null
-          user_id?: string
-          version?: number | null
-          version_tag?: string | null
+          saved_by?: string | null
+          to_version_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "resume_version_changes_from_version_id_fkey"
+            columns: ["from_version_id"]
+            isOneToOne: false
+            referencedRelation: "resume_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resume_version_changes_to_version_id_fkey"
+            columns: ["to_version_id"]
+            isOneToOne: false
+            referencedRelation: "resume_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resume_versions: {
+        Row: {
+          application_id: string | null
+          content: Json
+          created_at: string | null
+          docx_url: string | null
+          id: string
+          interviews_generated: number | null
+          is_latest: boolean | null
+          origin_type: string
+          parent_version_id: string | null
+          pdf_url: string | null
+          saved_as_latest_at: string | null
+          template_id: string | null
+          times_used: number | null
+          user_id: string
+          version_label: string | null
+          version_number: number
+        }
+        Insert: {
+          application_id?: string | null
+          content: Json
+          created_at?: string | null
+          docx_url?: string | null
+          id?: string
+          interviews_generated?: number | null
+          is_latest?: boolean | null
+          origin_type: string
+          parent_version_id?: string | null
+          pdf_url?: string | null
+          saved_as_latest_at?: string | null
+          template_id?: string | null
+          times_used?: number | null
+          user_id: string
+          version_label?: string | null
+          version_number?: number
+        }
+        Update: {
+          application_id?: string | null
+          content?: Json
+          created_at?: string | null
+          docx_url?: string | null
+          id?: string
+          interviews_generated?: number | null
+          is_latest?: boolean | null
+          origin_type?: string
+          parent_version_id?: string | null
+          pdf_url?: string | null
+          saved_as_latest_at?: string | null
+          template_id?: string | null
+          times_used?: number | null
+          user_id?: string
+          version_label?: string | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resume_versions_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resume_versions_parent_version_id_fkey"
+            columns: ["parent_version_id"]
+            isOneToOne: false
+            referencedRelation: "resume_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resume_versions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       resumes_generated: {
         Row: {
@@ -677,15 +1090,7 @@ export type Database = {
           skills_missing?: Json | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "resumes_generated_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "applications"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       skill_gaps: {
         Row: {
@@ -785,6 +1190,59 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_evidence: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          github_url: string | null
+          id: string
+          last_synced_at: string | null
+          linkedin_url: string | null
+          location: string | null
+          phone: string | null
+          portfolio_url: string | null
+          summary: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          github_url?: string | null
+          id?: string
+          last_synced_at?: string | null
+          linkedin_url?: string | null
+          location?: string | null
+          phone?: string | null
+          portfolio_url?: string | null
+          summary?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          github_url?: string | null
+          id?: string
+          last_synced_at?: string | null
+          linkedin_url?: string | null
+          location?: string | null
+          phone?: string | null
+          portfolio_url?: string | null
+          summary?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_evidence_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -943,3 +1401,4 @@ export const Constants = {
     },
   },
 } as const
+

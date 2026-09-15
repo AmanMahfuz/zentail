@@ -16,7 +16,7 @@ export default async function ApplicationsPage() {
     redirect("/signin");
   }
 
-  const { data: applications } = await supabase
+  const { data: applications, error: appError } = await supabase
     .from("applications")
     .select(`
       id,
@@ -60,7 +60,7 @@ export default async function ApplicationsPage() {
   ];
 
   const counts = statuses.reduce((acc, status) => {
-    acc[status.id] = applications?.filter(app => app.status === status.id).length || 0;
+    acc[status.id] = (applications || []).filter(app => app.status === status.id).length || 0;
     return acc;
   }, {} as Record<string, number>);
 
@@ -95,7 +95,7 @@ export default async function ApplicationsPage() {
             <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 4.5C2.5 4.22386 2.72386 4 3 4H12C12.2761 4 12.5 4.22386 12.5 4.5C12.5 4.77614 12.2761 5 12 5H3C2.72386 5 2.5 4.77614 2.5 4.5ZM4.5 7.5C4.5 7.22386 4.72386 7 5 7H10C10.2761 7 10.5 7.22386 10.5 7.5C10.5 7.77614 10.2761 8 10 8H5C4.72386 8 4.5 7.77614 4.5 7.5ZM6.5 10.5C6.5 10.22386 6.72386 10 7 10H8C8.27614 10 8.5 10.22386 8.5 10.5C8.5 10.77614 8.27614 11 8 11H7C6.72386 11 6.5 10.77614 6.5 10.5Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path></svg>
             Filters
           </Button>
-          <AddApplicationModal resumes={resumes || []} />
+          <AddApplicationModal />
         </div>
       </div>
 
@@ -153,7 +153,19 @@ export default async function ApplicationsPage() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden pb-4">
-        <KanbanWrapper initialApplications={applications || []} />
+        <KanbanWrapper initialApplications={
+          (applications || []).map(app => {
+            let newStatus: any = app.status;
+            if (["offer", "rejected"].includes(app.status)) newStatus = "outcome";
+            else if (["assessment", "interview"].includes(app.status)) newStatus = "interviewing";
+            else if (app.status === "saved") newStatus = "review_needed";
+
+            return {
+              ...app,
+              status: newStatus as any
+            };
+          })
+        } />
       </div>
 
       {/* AI Tip Banner */}

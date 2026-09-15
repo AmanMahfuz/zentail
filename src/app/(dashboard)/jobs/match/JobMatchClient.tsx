@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CheckCircle2, XCircle, AlertCircle, Bot, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, Bot, Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { matchJobDescription, JobMatchResult } from "@/lib/actions/ai-matching";
 
@@ -210,16 +210,16 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
             <Card className="rounded-2xl border-slate-200 shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <XCircle className="w-5 h-5 text-red-500" /> Missing Skills
+                  <XCircle className="w-5 h-5 text-red-500" /> Missing Evidence
                 </CardTitle>
-                <CardDescription>Skills required but missing from your resume.</CardDescription>
+                <CardDescription>Skills explicitly required that lack concrete evidence in your resume.</CardDescription>
               </CardHeader>
               <CardContent>
-                {result.missing_skills.length === 0 ? (
-                  <p className="text-sm text-slate-500 italic">You hit all the requirements!</p>
+                {result.missing_evidence?.length === 0 ? (
+                  <p className="text-sm text-slate-500 italic">You have solid evidence for all requirements!</p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
-                    {result.missing_skills.map((skill, i) => (
+                    {result.missing_evidence?.map((skill, i) => (
                       <span key={i} className="bg-red-50 text-red-700 border border-red-100 px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5">
                         {skill}
                       </span>
@@ -228,6 +228,48 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
                 )}
               </CardContent>
             </Card>
+
+            {result.suspicious_requirements?.length > 0 && (
+              <Card className="rounded-2xl border-amber-200 shadow-sm bg-amber-50/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2 text-amber-900">
+                    <AlertTriangle className="w-5 h-5 text-amber-500" /> Suspicious Requirements
+                  </CardTitle>
+                  <CardDescription className="text-amber-700">Demands that appear unrealistic for this role.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3">
+                    {result.suspicious_requirements.map((req, i) => (
+                      <li key={i} className="flex gap-3 text-amber-800 text-sm bg-white p-3 rounded-lg border border-amber-100 shadow-sm">
+                        <span className="text-amber-500 font-bold mt-0.5">•</span> 
+                        <span className="leading-relaxed">{req}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
+            {result.scam_risk_signals?.length > 0 && (
+              <Card className="rounded-2xl border-red-200 shadow-sm bg-red-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2 text-red-900">
+                    <ShieldAlert className="w-5 h-5 text-red-600" /> Scam Risk Signals
+                  </CardTitle>
+                  <CardDescription className="text-red-700">Extreme red flags detected in the job description.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3">
+                    {result.scam_risk_signals.map((signal, i) => (
+                      <li key={i} className="flex gap-3 text-red-800 text-sm bg-white p-3 rounded-lg border border-red-200 shadow-sm">
+                        <span className="text-red-600 font-bold mt-0.5">•</span> 
+                        <span className="leading-relaxed font-semibold">{signal}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="rounded-2xl border-slate-200 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
               <CardHeader className="pb-3">

@@ -12,6 +12,7 @@ import { formatDistanceToNow, differenceInDays, differenceInHours, differenceInM
 
 type Props = {
   userName: string;
+  targetRole?: string;
   countsByStatus: Record<string, number>;
   upcomingInterviews: any[];
   followUps: any[];
@@ -22,69 +23,16 @@ type Props = {
   matchedCount: number;
   topMissing: any[];
   activeLearningPath: any | null;
+  children?: React.ReactNode;
 };
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { bg: string; text: string; label: string }> = {
-    saved:       { bg: "#f1f5f9", text: "#64748b", label: "Saved" },
-    applied:     { bg: "#dbeafe", text: "#1e40af", label: "Applied" },
-    assessment:  { bg: "#fef3c7", text: "#92400e", label: "Assessment" },
-    interview:   { bg: "#ede9fe", text: "#5b21b6", label: "Interview" },
-    offer:       { bg: "#dcfce7", text: "#166534", label: "Offer" },
-    rejected:    { bg: "#fee2e2", text: "#991b1b", label: "Rejected" },
-  };
-  const s = map[status] ?? { bg: "#f1f5f9", text: "#64748b", label: status };
-  return (
-    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide"
-      style={{ backgroundColor: s.bg, color: s.text }}>{s.label}</span>
-  );
-}
-
-function Countdown({ scheduledAt }: { scheduledAt: string }) {
-  const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number } | null>(null);
-
-  useEffect(() => {
-    const update = () => {
-      const target = new Date(scheduledAt);
-      const now = new Date();
-      if (target <= now) { setTimeLeft({ d: 0, h: 0, m: 0 }); return; }
-      setTimeLeft({
-        d: differenceInDays(target, now),
-        h: differenceInHours(target, now) % 24,
-        m: differenceInMinutes(target, now) % 60,
-      });
-    };
-    update();
-    const id = setInterval(update, 60000);
-    return () => clearInterval(id);
-  }, [scheduledAt]);
-
-  if (!timeLeft) return null;
-  if (timeLeft.d === 0 && timeLeft.h === 0 && timeLeft.m === 0)
-    return <span className="text-xs font-semibold" style={{ color: "#16a34a" }}>Interview time!</span>;
-
-  return (
-    <div className="flex items-center gap-1.5 mt-2">
-      {timeLeft.d > 0 && (
-        <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: "var(--color-sunset-whisper)", color: "var(--color-sunset-orange)" }}>
-          {timeLeft.d}d
-        </span>
-      )}
-      <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: "var(--color-sunset-whisper)", color: "var(--color-sunset-orange)" }}>
-        {timeLeft.h}h
-      </span>
-      <span className="px-2 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: "var(--color-sunset-whisper)", color: "var(--color-sunset-orange)" }}>
-        {timeLeft.m}m
-      </span>
-      <span className="text-[11px]" style={{ color: "var(--color-fog-text)" }}>remaining</span>
-    </div>
-  );
-}
+// ... skipped function definitions ...
 
 export default function DashboardLayoutClient({
-  userName, countsByStatus, upcomingInterviews, followUps,
+  userName, targetRole, countsByStatus, upcomingInterviews, followUps,
   recentApplications, applicationsThisWeek, coveragePercent,
   totalUnique, matchedCount, topMissing, activeLearningPath,
+  children,
 }: Props) {
   const totalApplications = Object.values(countsByStatus).reduce((a, b) => a + b, 0);
   const offers = countsByStatus.offer || 0;
@@ -95,28 +43,63 @@ export default function DashboardLayoutClient({
   return (
     <div className="space-y-6">
 
-      {/* ── Welcome Banner ────────────────────────────────────────── */}
-      <div
-        className="rounded-2xl px-6 py-5 flex items-center justify-between"
-        style={{
-          background: "linear-gradient(135deg, var(--color-sunset-orange) 0%, #7c3aed 100%)",
-          boxShadow: "0 4px 24px rgba(94,76,255,0.25)",
-        }}
+      {/* ── Top Level Summary Stats ─────────────────────────────────── */}
+      <div 
+        className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between mb-8 pb-8 border-b"
+        style={{ borderColor: "var(--border)" }}
       >
         <div>
-          <h2 className="text-xl font-semibold text-white mb-1" style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.02em" }}>
-            Welcome back{userName ? `, ${userName.split(" ")[0]}` : ""}! 👋
+          {targetRole && (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full mb-3" style={{ backgroundColor: "#eef2ff" }}>
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
+                Targeting {targetRole} roles
+              </span>
+            </div>
+          )}
+          <h2 className="text-3xl font-bold flex items-center gap-2 mb-1.5" style={{ fontFamily: "var(--font-display)", color: "var(--color-graphite-heading)", letterSpacing: "-0.03em" }}>
+            Welcome back, {userName} 👋
           </h2>
-          <div className="flex items-center gap-4 text-white/80 text-sm">
-            <span><strong className="text-white">{totalApplications}</strong> applications in progress</span>
-            <span>•</span>
-            <span><strong className="text-white">{upcomingInterviews.length}</strong> interviews scheduled</span>
-            <span>•</span>
-            <span><strong className="text-white">{coveragePercent}%</strong> skill coverage</span>
+          <p className="text-sm mb-4" style={{ color: "var(--color-slate-body)" }}>
+            Here is a summary of your job search progress.
+          </p>
+          <div className="flex items-center gap-3">
+            <span 
+              className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5"
+              style={{ backgroundColor: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" }}
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+              {countsByStatus.saved + countsByStatus.applied + countsByStatus.assessment + countsByStatus.interview} in progress
+            </span>
+            <span 
+              className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5"
+              style={{ backgroundColor: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" }}
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-zinc-300"></div>
+              {upcomingInterviews.length} upcoming interviews
+            </span>
+            <span 
+              className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5"
+              style={{ backgroundColor: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" }}
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+              {coveragePercent}% skill coverage
+            </span>
           </div>
         </div>
-        <AddApplicationModal />
+
+        <div className="w-full md:w-auto relative">
+          <AddApplicationModal 
+             triggerClassName="w-full md:w-auto inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm h-10 px-5 text-sm font-semibold transition-all"
+          />
+        </div>
       </div>
+
+      {children && (
+        <div className="mt-6 mb-2">
+          {children}
+        </div>
+      )}
 
       {/* ── Stat Cards Row ────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

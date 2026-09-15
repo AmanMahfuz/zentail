@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Loader2, Sparkles } from "lucide-react";
 import { generateMasterResume } from "@/lib/actions/ai-resume-generator";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 export function AIGenerateModal({ children }: { children?: React.ReactElement }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -41,9 +42,9 @@ export function AIGenerateModal({ children }: { children?: React.ReactElement })
       <DialogTrigger
         render={
           children || (
-            <Button className="bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl shadow-sm h-11 px-6 font-medium">
+            <button className={cn(buttonVariants(), "bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl shadow-sm h-11 px-6 font-medium")}>
               <Sparkles className="w-4 h-4 mr-2" /> AI Generate
-            </Button>
+            </button>
           )
         }
       />

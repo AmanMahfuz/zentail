@@ -10,6 +10,7 @@ import { ApplicationStatus, updateApplication, deleteApplication } from "@/lib/a
 import { generateTailoredResume, generateCoverLetter } from "@/lib/actions/phase3";
 import { AddInterviewModal } from "./AddInterviewModal";
 import { DocumentPreviewModal } from "./DocumentPreviewModal";
+import { LogOutcomeModal } from "./components/LogOutcomeModal";
 import Link from "next/link";
 
 type ApplicationDetailsSheetProps = {
@@ -18,7 +19,7 @@ type ApplicationDetailsSheetProps = {
   onOpenChange: (open: boolean) => void;
 };
 
-const statusColors: Record<ApplicationStatus, string> = {
+const statusColors: Record<string, string> = {
   saved: "bg-slate-100 text-slate-700 border-slate-200",
   applied: "bg-blue-100 text-blue-700 border-blue-200",
   assessment: "bg-purple-100 text-purple-700 border-purple-200",
@@ -194,22 +195,18 @@ export function ApplicationDetailsSheet({ app, isOpen, onOpenChange }: Applicati
           <div className="space-y-6">
             <div className="space-y-3">
               <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pipeline Stage</Label>
-              <div className="relative">
-                <select 
-                  value={status} 
-                  onChange={(e) => setStatus(e.target.value as ApplicationStatus)}
-                  className="appearance-none flex h-12 w-full items-center justify-between rounded-xl border-2 border-slate-100 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-900 focus:outline-none focus:border-blue-500 focus:bg-white transition-colors cursor-pointer shadow-sm hover:border-slate-200"
-                >
-                  <option value="saved">Saved</option>
-                  <option value="applied">Applied</option>
-                  <option value="assessment">Assessment</option>
-                  <option value="interview">Interview</option>
-                  <option value="offer">Offer</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-slate-400">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                </div>
+              <div className="relative flex items-center justify-between bg-slate-50 border border-slate-100 p-4 rounded-xl">
+                <span className={`px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded-full border ${statusColors[status]}`}>
+                  {status}
+                </span>
+                <LogOutcomeModal 
+                  applicationId={app.id} 
+                  currentStatus={status} 
+                  onStatusChange={() => {
+                    // Force a reload or close the modal so parent re-fetches
+                    onOpenChange(false);
+                  }} 
+                />
               </div>
             </div>
 
@@ -224,7 +221,15 @@ export function ApplicationDetailsSheet({ app, isOpen, onOpenChange }: Applicati
                   </Link>
                 </div>
                 <p className="text-sm text-blue-700/80 mb-2">Schedule an interview round to unlock an AI-powered prep workspace.</p>
-                <AddInterviewModal applicationId={app.id} />
+                <div className="flex flex-col gap-2">
+                  <AddInterviewModal applicationId={app.id} />
+                  <Link 
+                    href={`/applications/${app.id}/interview`}
+                    className="flex items-center justify-center w-full bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 py-2 px-4 rounded-md text-sm font-medium transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" /> Start AI Simulator
+                  </Link>
+                </div>
               </div>
             )}
 

@@ -1,0 +1,1234 @@
+<USER_REQUEST>
+# ZENTAIL: COMPLETE REDESIGNED FLOW
+# Landing → Onboarding → Dashboard → Application Workspace
+
+---
+
+## THE ONE PROMISE
+
+> "Find a job → understand your fit → improve your application → create the right resume → apply."
+
+---
+
+## COMPLETE FLOW MAP
+
+```
+LANDING PAGE
+   │
+   ├── Upload resume
+   └── Paste JD / job link
+          │
+          ▼
+   FREE JOB ANALYSIS
+   (no signup yet)
+   Shows: fit score, matched, partial, missing, 3 improvements
+          │
+          ▼
+   "Turn this into your application"
+   [Create my application →]
+          │
+          ▼
+   ONBOARDING
+   Step 1: Account creation (email/password)
+   Step 2: Resume already parsed → confirm skills
+   Step 3: Redirect to Application Workspace
+          │
+          ▼
+   APPLICATION WORKSPACE
+   (first job already analyzed and waiting)
+          │
+          ▼
+   Requirements map + Resume tailor + Cover letter + Interview prep
+          │
+          ▼
+   APPLY → TRACK → INTERVIEW → LEARN → NEXT JOB (BETTER)
+```
+
+---
+
+## PAGE 1: LANDING PAGE (`/`)
+
+### The Philosophy
+Landing page IS the product's first action.
+No "welcome to Zentail" marketing fluff.
+User does something useful before seeing any signup.
+
+### Layout
+
+```
+NAVBAR
+Zentail                              [Sign in] [Get started]
+
+──────────────────────────────────────────────────────────
+
+HERO
+Stop sending the same resume to every job.
+
+Understand what a job actually requires,
+see where you match, and create a stronger
+application based on your real experience.
+
+──────────────────────────────────────────────────────────
+
+ANALYSIS FORM (the product, not a CTA)
+
+┌─────────────────────────────────────────────────────┐
+│ Analyze a job                                       │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│ 1. Upload your resume                               │
+│ ┌─────────────────────────────────────────────────┐│
+│ │  📄 Drop resume here or browse                  ││
+│ │  PDF, DOC, DOCX                                 ││
+│ └─────────────────────────────────────────────────┘│
+│                                                     │
+│ 2. Paste a job description or job link              │
+│ ┌─────────────────────────────────────────────────┐│
+│ │  Paste job description here...                  ││
+│ │                                                  ││
+│ │  or [Paste job link instead]                    ││
+│ └─────────────────────────────────────────────────┘│
+│                                                     │
+│ [Analyze →]                    No signup needed     │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+
+──────────────────────────────────────────────────────────
+
+HOW IT WORKS (3 steps, after the form)
+
+1. Upload resume         2. Paste job           3. See exact fit
+We read your real        We extract every       See matched skills,
+skills and experience    requirement from it    gaps, and how to improve
+```
+
+### Code
+
+```tsx
+// src/app/page.tsx
+"use client";
+
+import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+
+type Step = "input" | "analyzing" | "result";
+
+export default function LandingPage() {
+  const [step, setStep] = useState<Step>("input");
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeName, setResumeName] = useState("");
+  const [jd, setJd] = useState("");
+  const [jdMode, setJdMode] = useState<"paste" | "link">("paste");
+  const [result, setResult] = useState<any>(null);
+  const [analyzeProgress, setAnalyzeProgress] = useState<string[]>([]);
+  const router = useRouter();
+
+  const handleFileDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      setResumeFile(file);
+      setResumeName(file.name);
+    }
+  }, []);
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setResumeFile(file);
+      setResumeName(file.name);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!resumeFile || !jd.trim()) return;
+    setStep("analyzing");
+
+    const steps = [
+      "Understanding job requirements...",
+      "Extracting your experience...",
+      "Comparing your experience...",
+      "Identifying gaps...",
+      "Finding resume opportunities..."
+    ];
+
+    // Show progress one by one
+    for (let i = 0; i < steps.length; i++) {
+      await new Promise(r => setTimeout(r, 600));
+      setAnalyzeProgress(prev => [...prev, steps[i]]);
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("resume", resumeFile);
+      formData.append("jobDescription", jd);
+
+      const response = await fetch("/api/public/full-analysis", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await response.json();
+
+      // Save to sessionStorage for onboarding
+      sessionStorage.setItem("pending_jd", jd);
+      sessionStorage.setItem("parsed_resume", JSON.stringify(data.parsedResume));
+      sessionStorage.setItem("analysis_result", JSON.stringify(data.analysis));
+
+      setResult(data.analysis);
+      setStep("result");
+    } catch {
+      setStep("input");
+    }
+  };
+
+  // INPUT STEP
+  if (step === "input") return (
+    <div style={{ minHeight: "100vh", fontFamily: "var(--font-sans)" }}>
+      <nav style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "1rem 2rem",
+        borderBottom: "0.5px solid var(--border)"
+      }}>
+        <div style={{ fontWeight: 600 }}>Zentail</div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <a href="/signin" style={{ fontSize: 14, color: "var(--text-secondary)", textDecoration: "none" }}>
+            Sign in
+          </a>
+          <a href="/signup" style={{
+            fontSize: 14, padding: "6px 14px",
+            background: "var(--fill-accent)", color: "white",
+            borderRadius: "var(--radius)", textDecoration: "none"
+          }}>
+            Get started
+          </a>
+        </div>
+      </nav>
+
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: "4rem 2rem" }}>
+        <h1 style={{
+          fontSize: "clamp(24px, 4vw, 40px)",
+          fontWeight: 600,
+          lineHeight: 1.2,
+          marginBottom: 12
+        }}>
+          Stop sending the same resume to every job.
+        </h1>
+        <p style={{
+          fontSize: 16,
+          color: "var(--text-secondary)",
+          lineHeight: 1.6,
+          marginBottom: 40
+        }}>
+          Understand what a job actually requires, see where you match,
+          and create a stronger application based on your real experience.
+        </p>
+
+        {/* THE FORM */}
+        <div style={{
+          background: "var(--surface-2)",
+          border: "0.5px solid var(--border)",
+          borderRadius: 16,
+          padding: "1.5rem"
+        }}>
+          {/* Resume upload */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>
+              1. Upload your resume
+            </div>
+
+            <label
+              onDragOver={e => e.preventDefault()}
+              onDrop={handleFileDrop}
+              style={{
+                display: "block",
+                border: resumeFile
+                  ? "0.5px solid var(--border-success)"
+                  : "2px dashed var(--border)",
+                borderRadius: 12,
+                padding: resumeFile ? "12px 16px" : "2rem",
+                textAlign: "center",
+                cursor: "pointer",
+                background: resumeFile ? "var(--bg-success)" : "transparent",
+                transition: "all 0.2s"
+              }}
+            >
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={handleFileInput}
+                style={{ display: "none" }}
+              />
+              {resumeFile ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 18 }}>✓</span>
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>{resumeName}</span>
+                  <button
+                    onClick={e => { e.preventDefault(); setResumeFile(null); setResumeName(""); }}
+                    style={{
+                      marginLeft: "auto", fontSize: 12, color: "var(--text-muted)",
+                      background: "none", border: "none", cursor: "pointer"
+                    }}
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 24, marginBottom: 6 }}>📄</div>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>
+                    Drop your resume here
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
+                    PDF, DOC, DOCX
+                  </div>
+                </>
+              )}
+            </label>
+          </div>
+
+          {/* JD input */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 8
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>
+                2. Paste a job description
+              </div>
+              <button
+                onClick={() => setJdMode(jdMode === "paste" ? "link" : "paste")}
+                style={{
+                  fontSize: 12, color: "var(--text-accent)",
+                  background: "none", border: "none", cursor: "pointer"
+                }}
+              >
+                {jdMode === "paste" ? "Use job link instead →" : "← Paste description instead"}
+              </button>
+            </div>
+
+            {jdMode === "paste" ? (
+              <textarea
+                value={jd}
+                onChange={e => setJd(e.target.value)}
+                placeholder="Paste the full job description here — responsibilities, requirements, qualifications..."
+                style={{
+                  width: "100%",
+                  minHeight: 120,
+                  padding: 12,
+                  border: "0.5px solid var(--border)",
+                  borderRadius: 12,
+                  fontSize: 14,
+                  fontFamily: "inherit",
+                  resize: "vertical",
+                  boxSizing: "border-box"
+                }}
+              />
+            ) : (
+              <input
+                value={jd}
+                onChange={e => setJd(e.target.value)}
+                placeholder="https://linkedin.com/jobs/view/..."
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  border: "0.5px solid var(--border)",
+                  borderRadius: 12,
+                  fontSize: 14,
+                  boxSizing: "border-box"
+                }}
+              />
+            )}
+          </div>
+
+          {/* Analyze button */}
+          <button
+            onClick={handleAnalyze}
+            disabled={!resumeFile || !jd.trim()}
+            style={{
+              width: "100%",
+              padding: "12px",
+              background: resumeFile && jd.trim()
+                ? "var(--fill-accent)"
+                : "var(--surface-1)",
+              color: resumeFile && jd.trim() ? "white" : "var(--text-muted)",
+              border: "none",
+              borderRadius: "var(--radius)",
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: resumeFile && jd.trim() ? "pointer" : "not-allowed",
+              transition: "all 0.2s"
+            }}
+          >
+            Analyze →
+          </button>
+
+          <div style={{
+            fontSize: 12,
+            color: "var(--text-muted)",
+            textAlign: "center",
+            marginTop: 10
+          }}>
+            No signup needed · Free · Takes 15 seconds
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ANALYZING STEP
+  if (step === "analyzing") return (
+    <div style={{
+      minHeight: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontFamily: "var(--font-sans)"
+    }}>
+      <div style={{ maxWidth: 400, width: "100%", padding: "2rem" }}>
+        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 20 }}>
+          Analyzing your application...
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {analyzeProgress.map((s, i) => (
+            <div key={i} style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              fontSize: 14,
+              color: "var(--text-secondary)"
+            }}>
+              <span style={{ color: "var(--text-success)", fontSize: 16 }}>✓</span>
+              {s}
+            </div>
+          ))}
+          {analyzeProgress.length < 5 && (
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              fontSize: 14,
+              color: "var(--text-muted)"
+            }}>
+              <div style={{
+                width: 16,
+                height: 16,
+                borderRadius: "50%",
+                border: "2px solid var(--fill-accent)",
+                borderTopColor: "transparent",
+                animation: "spin 0.8s linear infinite"
+              }} />
+              {["Understanding job requirements...",
+                "Extracting your experience...",
+                "Comparing your experience...",
+                "Identifying gaps...",
+                "Finding resume opportunities..."][analyzeProgress.length]}
+            </div>
+          )}
+        </div>
+      </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+
+  // RESULT STEP
+  if (step === "result" && result) return (
+    <div style={{ minHeight: "100vh", fontFamily: "var(--font-sans)" }}>
+      <nav style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "1rem 2rem",
+        borderBottom: "0.5px solid var(--border)"
+      }}>
+        <div style={{ fontWeight: 600 }}>Zentail</div>
+        <button
+          onClick={() => setStep("input")}
+          style={{
+            fontSize: 13, color: "var(--text-secondary)",
+            background: "none", border: "none", cursor: "pointer"
+          }}
+        >
+          ← Try another job
+        </button>
+      </nav>
+
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: "2rem" }}>
+
+        {/* Fit score */}
+        <div style={{
+          background: result.fitScore >= 70
+            ? "var(--bg-success)"
+            : result.fitScore >= 50
+            ? "var(--bg-warning)"
+            : "var(--bg-danger)",
+          borderRadius: 16,
+          padding: "1.5rem",
+          marginBottom: "1.5rem"
+        }}>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
+            Your job fit
+          </div>
+          <div style={{ fontSize: 48, fontWeight: 600, marginBottom: 4 }}>
+            {result.fitScore}%
+          </div>
+          <div style={{ fontSize: 14 }}>{result.verdict}</div>
+        </div>
+
+        {/* Matched */}
+        <div style={{
+          background: "var(--surface-2)",
+          border: "0.5px solid var(--border)",
+          borderRadius: 16,
+          padding: "1.25rem",
+          marginBottom: "1rem"
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-success)", marginBottom: 12 }}>
+            ✅ Strong matches
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {result.matched?.map((s: string) => (
+              <span key={s} style={{
+                fontSize: 13,
+                padding: "4px 10px",
+                background: "var(--bg-success)",
+                color: "var(--text-success)",
+                borderRadius: 99
+              }}>
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Partial */}
+        {result.partial?.length > 0 && (
+          <div style={{
+            background: "var(--surface-2)",
+            border: "0.5px solid var(--border)",
+            borderRadius: 16,
+            padding: "1.25rem",
+            marginBottom: "1rem"
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-warning)", marginBottom: 12 }}>
+              ◐ Partial matches — needs more evidence
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {result.partial.map((s: string) => (
+                <span key={s} style={{
+                  fontSize: 13,
+                  padding: "4px 10px",
+                  background: "var(--bg-warning)",
+                  color: "var(--text-warning)",
+                  borderRadius: 99
+                }}>
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Missing */}
+        <div style={{
+          background: "var(--surface-2)",
+          border: "0.5px solid var(--border)",
+          borderRadius: 16,
+          padding: "1.25rem",
+          marginBottom: "1.5rem"
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-danger)", marginBottom: 12 }}>
+            ○ Missing or unclear
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {result.missing?.map((s: string) => (
+              <span key={s} style={{
+                fontSize: 13,
+                padding: "4px 10px",
+                background: "var(--bg-danger)",
+                color: "var(--text-danger)",
+                borderRadius: 99
+              }}>
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* What's holding you back */}
+        <div style={{
+          background: "var(--surface-2)",
+          border: "0.5px solid var(--border)",
+          borderRadius: 16,
+          padding: "1.25rem",
+          marginBottom: "1rem"
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>
+            What is holding your application back?
+          </div>
+          <div style={{
+            fontSize: 14,
+            color: "var(--text-secondary)",
+            lineHeight: 1.6
+          }}>
+            {result.whatIsHoldingBack}
+          </div>
+        </div>
+
+        {/* 3 improvements */}
+        <div style={{
+          background: "var(--surface-2)",
+          border: "0.5px solid var(--border)",
+          borderRadius: 16,
+          padding: "1.25rem",
+          marginBottom: "2rem"
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>
+            3 things you can improve
+          </div>
+          {result.improvements?.map((imp: string, i: number) => (
+            <div key={i} style={{
+              display: "flex",
+              gap: 10,
+              padding: "8px 0",
+              borderBottom: i < 2 ? "0.5px solid var(--border)" : "none"
+            }}>
+              <span style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "var(--text-accent)",
+                flexShrink: 0,
+                marginTop: 1
+              }}>
+                {i + 1}.
+              </span>
+              <span style={{ fontSize: 14, lineHeight: 1.5 }}>{imp}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* THE CTA - not "sign up", but "save this" */}
+        <div style={{
+          background: "var(--surface-2)",
+          border: "0.5px solid var(--border-accent)",
+          borderRadius: 16,
+          padding: "1.5rem",
+          textAlign: "center"
+        }}>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
+            Turn this analysis into your application
+          </div>
+          <div style={{
+            fontSize: 14,
+            color: "var(--text-secondary)",
+            marginBottom: 20,
+            lineHeight: 1.5
+          }}>
+            Save this job, create a tailored resume, track your application
+            and keep your preparation in one place.
+          </div>
+          <button
+            onClick={() => router.push("/onboarding?from=analysis")}
+            style={{
+              width: "100%",
+              padding: "14px",
+              background: "var(--fill-accent)",
+              color: "white",
+              border: "none",
+              borderRadius: "var(--radius)",
+              fontSize: 15,
+              fontWeight: 500,
+              cursor: "pointer"
+            }}
+          >
+            Create my application →
+          </button>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 10 }}>
+            Free · No credit card needed
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+
+  return null;
+}
+```
+
+---
+
+## PAGE 2: ONBOARDING (`/onboarding`)
+
+### Philosophy
+Onboarding has TWO completely different states:
+
+**State A: Not logged in (public)**
+→ Show account creation form
+→ Resume already parsed (from landing)
+→ Skills already confirmed
+→ Analysis already shown
+
+**State B: Logged in (just signed up)**
+→ Silently save everything to Supabase
+→ Create first application
+→ Redirect to application workspace
+
+### Code
+
+```tsx
+// src/app/onboarding/page.tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+
+type PublicStep = "confirm_skills" | "creating_account";
+
+export default function OnboardingPage() {
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+  const [publicStep, setPublicStep] = useState<PublicStep>("confirm_skills");
+  const [parsedResume, setParsedResume] = useState<any>(null);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [additionalSkills, setAdditionalSkills] = useState<string[]>([]);
+  const [newSkill, setNewSkill] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const supabase = createClient();
+
+  useEffect(() => {
+    // Check auth state
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsLoggedIn(!!user);
+
+      if (user) {
+        // LOGGED IN: save data and redirect
+        handleLoggedInSave(user.id);
+      } else {
+        // NOT LOGGED IN: load session data
+        const parsed = sessionStorage.getItem("parsed_resume");
+        const analysis = sessionStorage.getItem("analysis_result");
+        if (parsed) setParsedResume(JSON.parse(parsed));
+        if (analysis) setAnalysisResult(JSON.parse(analysis));
+      }
+    });
+  }, []);
+
+  // Called when user just signed up and landed back here
+  const handleLoggedInSave = async (userId: string) => {
+    setSaving(true);
+    try {
+      const parsed = sessionStorage.getItem("parsed_resume");
+      const pendingJD = sessionStorage.getItem("pending_jd");
+      const analysis = sessionStorage.getItem("analysis_result");
+      const extraSkills = sessionStorage.getItem("additional_skills");
+
+      if (!parsed) {
+        // No data — just go to dashboard
+        router.push("/dashboard");
+        return;
+      }
+
+      const resumeData = JSON.parse(parsed);
+      const allSkills = [
+        ...(resumeData.skills || []),
+        ...(extraSkills ? JSON.parse(extraSkills) : [])
+      ];
+
+      // Save profile
+      await supabase.from("profiles").update({
+        full_name: resumeData.name,
+        current_role: resumeData.currentRole,
+        onboarding_completed: true
+      }).eq("id", userId);
+
+      // Save skills
+      if (allSkills.length > 0) {
+        await supabase.from("user_skills").insert(
+          allSkills.map((skill: string) => ({
+            user_id: userId,
+            skill_name: skill,
+            proof_status: "self_reported"
+          }))
+        );
+      }
+
+      // Save projects
+      if (resumeData.projects?.length > 0) {
+        await supabase.from("user_projects").insert(
+          resumeData.projects.map((p: any) => ({
+            user_id: userId,
+            title: p.title,
+            description: p.description
+          }))
+        );
+      }
+
+      // Create first application from pending JD
+      let applicationId: string | null = null;
+      if (pendingJD) {
+        const response = await fetch("/api/applications/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jobDescription: pendingJD,
+            fromOnboarding: true,
+            preComputedAnalysis: analysis ? JSON.parse(analysis) : null
+          })
+        });
+        const data = await response.json();
+        applicationId = data.applicationId;
+      }
+
+      // Clear session storage
+      sessionStorage.removeItem("pending_jd");
+      sessionStorage.removeItem("parsed_resume");
+      sessionStorage.removeItem("analysis_result");
+      sessionStorage.removeItem("additional_skills");
+
+      // Redirect to their first application workspace
+      if (applicationId) {
+        router.push(`/applications/${applicationId}`);
+      } else {
+        router.push("/dashboard");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // SAVING STATE
+  if (saving || isLoggedIn === null) return (
+    <div style={{
+      minHeight: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontFamily: "var(--font-sans)"
+    }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 8 }}>
+          Setting up your workspace...
+        </div>
+        <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          This takes just a moment
+        </div>
+      </div>
+    </div>
+  );
+
+  // NOT LOGGED IN: Show skill confirmation + signup prompt
+  if (!isLoggedIn) {
+    const allSkills = [...(parsedResume?.skills || []), ...additionalSkills];
+
+    return (
+      <div style={{
+        minHeight: "100vh",
+        fontFamily: "var(--font-sans)"
+      }}>
+        <nav style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "1rem 2rem",
+          borderBottom: "0.5px solid var(--border)"
+        }}>
+          <div style={{ fontWeight: 600 }}>Zentail</div>
+          <a href="/signin" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>
+            Already have an account? Sign in
+          </a>
+        </nav>
+
+        <div style={{ maxWidth: 520, margin: "0 auto", padding: "2rem" }}>
+
+          {/* Progress */}
+          <div style={{
+            display: "flex",
+            gap: 6,
+            marginBottom: 32
+          }}>
+            {["Your skills", "Create account", "Application workspace"].map((label, i) => (
+              <div key={label} style={{ flex: 1 }}>
+                <div style={{
+                  height: 3,
+                  borderRadius: 99,
+                  background: i === 0
+                    ? "var(--fill-accent)"
+                    : "var(--surface-1)",
+                  marginBottom: 4
+                }} />
+                <div style={{
+                  fontSize: 11,
+                  color: i === 0
+                    ? "var(--text-accent)"
+                    : "var(--text-muted)"
+                }}>
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 8 }}>
+            {parsedResume?.name
+              ? `Here's what we found, ${parsedResume.name.split(" ")[0]}`
+              : "Here's what we found"
+            }
+          </h1>
+          <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 24 }}>
+            We extracted {parsedResume?.skills?.length || 0} skills and{" "}
+            {parsedResume?.projects?.length || 0} projects from your resume.
+            Add anything we missed.
+          </p>
+
+          {/* Skills */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>
+              Skills from your resume
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+              {parsedResume?.skills?.map((skill: string) => (
+                <span key={skill} style={{
+                  fontSize: 13,
+                  padding: "4px 10px",
+                  background: "var(--bg-success)",
+                  color: "var(--text-success)",
+                  borderRadius: 99
+                }}>
+                  ✓ {skill}
+                </span>
+              ))}
+              {additionalSkills.map(skill => (
+                <span
+                  key={skill}
+                  onClick={() => setAdditionalSkills(prev => prev.filter(s => s !== skill))}
+                  style={{
+                    fontSize: 13,
+                    padding: "4px 10px",
+                    background: "var(--bg-accent)",
+                    color: "var(--text-accent)",
+                    borderRadius: 99,
+                    cursor: "pointer"
+                  }}
+                >
+                  + {skill} ×
+                </span>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={newSkill}
+                onChange={e => setNewSkill(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter" && newSkill.trim()) {
+                    setAdditionalSkills(prev => [...prev, newSkill.trim()]);
+                    setNewSkill("");
+                  }
+                }}
+                placeholder="Add a missing skill..."
+                style={{
+                  flex: 1,
+                  padding: "8px 12px",
+                  border: "0.5px solid var(--border)",
+                  borderRadius: "var(--radius)",
+                  fontSize: 13
+                }}
+              />
+              <button
+                onClick={() => {
+                  if (newSkill.trim()) {
+                    setAdditionalSkills(prev => [...prev, newSkill.trim()]);
+                    setNewSkill("");
+                  }
+                }}
+                style={{
+                  padding: "8px 14px",
+                  border: "0.5px solid var(--border)",
+                  borderRadius: "var(--radius)",
+                  background: "transparent",
+                  fontSize: 13,
+                  cursor: "pointer"
+                }}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+
+          {/* Projects */}
+          {parsedResume?.projects?.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>
+                Projects detected
+              </div>
+              {parsedResume.projects.map((p: any, i: number) => (
+                <div key={i} style={{
+                  padding: "10px 12px",
+                  border: "0.5px solid var(--border)",
+                  borderRadius: "var(--radius)",
+                  marginBottom: 6,
+                  fontSize: 13
+                }}>
+                  <div style={{ fontWeight: 500 }}>{p.title}</div>
+                  <div style={{ color: "var(--text-secondary)", marginTop: 2, fontSize: 12 }}>
+                    {p.description?.slice(0, 80)}...
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* CTA - save analysis = create account */}
+          <button
+            onClick={() => {
+              // Save additional skills to session before redirecting
+              sessionStorage.setItem("additional_skills", JSON.stringify(additionalSkills));
+              router.push("/signup?from=onboarding");
+            }}
+            style={{
+              width: "100%",
+              padding: "14px",
+              background: "var(--fill-accent)",
+              color: "white",
+              border: "none",
+              borderRadius: "var(--radius)",
+              fontSize: 15,
+              fontWeight: 500,
+              cursor: "pointer"
+            }}
+          >
+            Save analysis and create account →
+          </button>
+
+          <div style={{
+            fontSize: 12,
+            color: "var(--text-muted)",
+            textAlign: "center",
+            marginTop: 10
+          }}>
+            Free · Your data is saved · No credit card needed
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null; // Will redirect
+}
+```
+
+---
+
+## PAGE 3: SIGNUP (Small Change)
+
+```tsx
+// In existing /signup page — add this at the top
+
+// Show context-aware message based on where they came from
+{searchParams.get("from") === "onboarding" && (
+  <div style={{
+    background: "var(--bg-accent)",
+    border: "0.5px solid var(--border-accent)",
+    borderRadius: 12,
+    padding: "12px 16px",
+    marginBottom: 20,
+    fontSize: 14
+  }}>
+    <span style={{ fontWeight: 500, color: "var(--text-accent)" }}>
+      Your analysis is ready.
+    </span>
+    <span style={{ color: "var(--text-secondary)" }}>
+      {" "}Create a free account to save it and build your application.
+    </span>
+  </div>
+)}
+```
+
+---
+
+## PUBLIC API: Full Analysis
+
+```typescript
+// src/app/api/public/full-analysis/route.ts
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+export async function POST(request: Request) {
+  const formData = await request.formData();
+  const resumeFile = formData.get("resume") as File;
+  const jobDescription = formData.get("jobDescription") as string;
+
+  const bytes = await resumeFile.arrayBuffer();
+  const base64 = Buffer.from(bytes).toString("base64");
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+  // Single call — both parse resume AND analyze fit
+  const prompt = `
+    You have a resume and a job description.
+    
+    Job Description:
+    ${jobDescription.slice(0, 3000)}
+    
+    Tasks:
+    1. Parse the resume completely
+    2. Extract all requirements from the job description
+    3. Compare them and calculate fit
+    
+    Return JSON only:
+    {
+      "parsedResume": {
+        "name": "string",
+        "email": "string",
+        "currentRole": "string",
+        "experience": "string",
+        "skills": ["skill1", "skill2"],
+        "projects": [{"title": "string", "description": "string"}],
+        "education": "string"
+      },
+      "analysis": {
+        "fitScore": 72,
+        "jobTitle": "string",
+        "company": "Unknown",
+        "matched": ["React", "JavaScript"],
+        "partial": ["TypeScript"],
+        "missing": ["Docker", "AWS"],
+        "verdict": "Good match. A few gaps to address before applying.",
+        "whatIsHoldingBack": "Your resume doesn't demonstrate TypeScript depth despite listing it. The role emphasizes this heavily.",
+        "improvements": [
+          "Strengthen your TypeScript project descriptions with specific examples",
+          "Surface your API integration experience more prominently",
+          "Add a brief mention of any cloud or deployment experience"
+        ]
+      }
+    }
+    
+    Be honest and specific. Don't fabricate skills.
+    Return ONLY JSON.
+  `;
+
+  const result = await model.generateContent([
+    prompt,
+    { inlineData: { mimeType: "application/pdf", data: base64 } }
+  ]);
+
+  const text = result.response.text()
+    .replace(/```json\n?/g, "")
+    .replace(/```\n?/g, "")
+    .trim();
+
+  return Response.json(JSON.parse(text));
+}
+```
+
+---
+
+## NAVIGATION: SIMPLIFIED
+
+```tsx
+// Sidebar - only 4 items
+
+const NAV_ITEMS = [
+  { href: "/dashboard",    icon: "🏠", label: "Dashboard"    },
+  { href: "/applications", icon: "📋", label: "Applications" },
+  { href: "/resumes",      icon: "📄", label: "Resumes"      },
+  { href: "/settings",     icon: "⚙️", label: "Settings"     }
+];
+```
+
+---
+
+## COMPLETE FLOW SUMMARY
+
+```
+1. LANDING PAGE
+   User uploads resume + pastes JD
+   Clicks "Analyze →"
+   Sees loading steps (6 steps, animated)
+   Sees: Fit score, matched, partial, missing,
+         "what's holding you back", 3 improvements
+   Clicks "Create my application →"
+
+2. ONBOARDING (public, not logged in)
+   Skills already extracted from resume
+   User confirms + adds missing skills
+   Clicks "Save analysis and create account →"
+   → /signup?from=onboarding
+
+3. SIGNUP
+   Context-aware message: "Your analysis is ready"
+   User creates account
+   → /onboarding (redirected back)
+
+4. ONBOARDING (now logged in)
+   Detects user is logged in
+   Shows "Setting up your workspace..."
+   Silently saves: profile, skills, projects
+   Creates first application from pending JD
+   Triggers background agents on that application
+   Clears sessionStorage
+   → /applications/[id] (their first application workspace)
+
+5. APPLICATION WORKSPACE
+   First job already analyzed and waiting
+   Requirement map showing
+   Tailored resume generating
+   Cover letter generating
+   Interview prep generating
+   User immediately engaged — NOT empty state
+```
+
+---
+
+## KEY DESIGN DECISIONS
+
+```
+WHY no signup before seeing value:
+→ Users who see value first convert 3-5x better
+→ "Create my application" feels like an unlock not a barrier
+→ Motivated signup = lower churn
+
+WHY onboarding is 1 step (not 6):
+→ Resume upload extracts everything automatically
+→ User just confirms — doesn't type manually
+→ Under 2 minutes total
+
+WHY redirect to application workspace (not dashboard):
+→ Dashboard with 0 apps is depressing
+→ Application workspace has their first job ready
+→ Immediate engagement, not empty state
+
+WHY "Analyze a job" not "Add application":
+→ Mentally the user isn't "creating an application" yet
+→ They're exploring — "analyze" is lower commitment
+→ After seeing analysis, they WANT to create application
+
+WHY save everything silently in background:
+→ User doesn't re-do any work after signing up
+→ Seamless continuation of where they were
+→ Feels magical — "how did it know?"
+``` make it one think to remember dont chaneg any design currently have 
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-09-13T13:17:03+05:30.
+
+The user's current state is as follows:
+Active Document: /Users/amanmahfuz/Documents/systems/projects/Zentail/src/app/(dashboard)/applications/page.tsx (LANGUAGE_TSX)
+Cursor is on line: 23
+Other open documents:
+- /Users/amanmahfuz/Documents/systems/projects/Zentail/src/app/(dashboard)/applications/page.tsx (LANGUAGE_TSX)
+- /Users/amanmahfuz/Documents/systems/projects/Zentail/src/app/(dashboard)/layout.tsx (LANGUAGE_TSX)
+- /Users/amanmahfuz/Documents/systems/projects/Zentail/src/app/(dashboard)/applications/AddApplicationModal.tsx (LANGUAGE_TSX)
+- /Users/amanmahfuz/Documents/systems/projects/Zentail/src/app/(dashboard)/dashboard/DashboardLayout.tsx (LANGUAGE_TSX)
+- /Users/amanmahfuz/Documents/systems/projects/Zentail/src/components/dashboard/HeroAction.tsx (LANGUAGE_TSX)
+Running terminal commands:
+- npm run dev (in /Users/amanmahfuz/Documents/systems/projects/Zentail, running for 4h4m45s)
+</ADDITIONAL_METADATA>

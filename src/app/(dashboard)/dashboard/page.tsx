@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import DashboardLayoutClient from "./DashboardLayout";
+import { HeroAction } from "@/components/dashboard/HeroAction";
+import { PipelineSummary } from "@/components/dashboard/PipelineSummary";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -96,29 +98,27 @@ export default async function DashboardPage() {
     .limit(1)
     .single();
 
+  const firstName = profile?.full_name?.split(" ")[0] || "there";
+  const isFirstTime = !applications || applications.length === 0;
+
+  // Mock data for the new AI components
+  const mockApplications = (applications || []).map(app => ({
+    ...app,
+    company_name: (app as any).job?.company || "Unknown Company",
+    job_title: (app as any).job?.title || "Unknown Role",
+    fit_score: 85,
+    requirement_maps: { missing_count: 2 }
+  }));
+
+  const needsReview = mockApplications.filter(a => a.status === "saved") || [];
+  const analyzing = mockApplications.filter(a => (a.status as string) === "analyzing") || [];
+  const upcomingInterviewsNew = mockApplications.filter(a => ["interview", "assessment"].includes(a.status)) || [];
+
   return (
     <div className="p-8 overflow-y-auto h-full">
-      <div className="mb-8">
-        <h1
-          className="text-3xl font-semibold mb-1.5"
-          style={{
-            fontFamily: "var(--font-display)",
-            color: "var(--color-graphite-heading)",
-            letterSpacing: "-0.03em",
-            lineHeight: 1.15,
-          }}
-        >
-          {profile?.primary_target_role
-            ? <>Targeting <span style={{ color: "var(--color-sunset-orange)" }}>{profile.primary_target_role}</span> roles</>
-            : "Your job search, organized"}
-        </h1>
-        <p className="text-sm" style={{ color: "var(--color-slate-body)", letterSpacing: "-0.01em" }}>
-          Here is a summary of your job search progress.
-        </p>
-      </div>
-
       <DashboardLayoutClient
         userName={profile?.full_name ?? user.email?.split("@")[0] ?? ""}
+        targetRole={profile?.primary_target_role ?? ""}
         countsByStatus={countsByStatus}
         upcomingInterviews={interviews ?? []}
         followUps={followUps ?? []}
@@ -129,7 +129,18 @@ export default async function DashboardPage() {
         matchedCount={matchedSet.size}
         topMissing={topMissing}
         activeLearningPath={activePath ?? null}
-      />
+      >
+        <PipelineSummary applications={applications ?? []} weeklyStats={{ new_this_week: applicationsThisWeek }} />
+        {!isFirstTime && (
+          <HeroAction
+            firstName={firstName}
+            isFirstTime={isFirstTime}
+            needsReview={needsReview as any}
+            analyzing={analyzing as any}
+            upcomingInterviews={upcomingInterviewsNew as any}
+          />
+        )}
+      </DashboardLayoutClient>
     </div>
   );
 }

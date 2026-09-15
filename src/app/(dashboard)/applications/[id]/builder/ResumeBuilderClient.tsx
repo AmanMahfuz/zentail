@@ -5,13 +5,28 @@ import { DocumentBuilderSidebar } from "./DocumentBuilderSidebar";
 import { ResumeCanvas } from "./ResumeCanvas";
 import { IntelligenceSidebar } from "./IntelligenceSidebar";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, Download, Send, Zap } from "lucide-react";
+import { ChevronRight, Download, Send, Zap, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { exportResumeToDocx } from "@/lib/utils/export-docx";
 
 export function ResumeBuilderClient({ application, activeResume, history }: { application: any, activeResume: any, history: any[] }) {
   const [zoom, setZoom] = useState(100);
+  const [isExporting, setIsExporting] = useState(false);
 
   const job = application.job || {};
+
+  const handleExportDocx = async () => {
+    if (!activeResume?.content?.resume_markdown) return;
+    setIsExporting(true);
+    try {
+      await exportResumeToDocx(activeResume.content.resume_markdown, `resume-${job.company || "zentail"}.docx`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to export DOCX.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -37,8 +52,13 @@ export function ResumeBuilderClient({ application, activeResume, history }: { ap
         </div>
 
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="text-slate-600 border-slate-200 hover:bg-slate-50">
-            <Download className="w-4 h-4 mr-2" />
+          <Button 
+            variant="outline" 
+            className="text-slate-600 border-slate-200 hover:bg-slate-50"
+            onClick={handleExportDocx}
+            disabled={isExporting}
+          >
+            {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
             Export .DOCX
           </Button>
           <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">

@@ -198,14 +198,18 @@ export async function evaluateAIPracticeAnswer(question: string, answer: string)
   try {
     const ai = new GoogleGenAI({ apiKey });
 
-    const prompt = `You are a tough but fair technical interviewer. I am practicing for an interview.
+    const prompt = `You are a tough but fair technical interviewer evaluating a candidate's spoken or written answer.
     
 Question: ${question}
 My Answer: ${answer}
 
 Evaluate my answer. Return a JSON object with:
 1. "score": a number from 1 to 10
-2. "feedback": a 2-3 sentence critique of what I did well and what's missing (e.g. STAR method).`;
+2. "feedback": general critique
+3. "structure": feedback on STAR method or logical flow
+4. "clarity": how clear and concise the answer was
+5. "relevance": did they actually answer the question?
+6. "missing_evidence": what specific examples or details should have been included?`;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -217,9 +221,13 @@ Evaluate my answer. Return a JSON object with:
           type: Type.OBJECT,
           properties: {
             score: { type: Type.INTEGER },
-            feedback: { type: Type.STRING }
+            feedback: { type: Type.STRING },
+            structure: { type: Type.STRING },
+            clarity: { type: Type.STRING },
+            relevance: { type: Type.STRING },
+            missing_evidence: { type: Type.STRING }
           },
-          required: ["score", "feedback"]
+          required: ["score", "feedback", "structure", "clarity", "relevance", "missing_evidence"]
         }
       }
     });

@@ -6,24 +6,25 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ─── Lightdash Design Tokens ────────────────────────────────────────────────── */
+/* ─── Vercel/Monochrome Design Tokens ────────────────────────────────────────────────── */
 
 :root {
   /* Brand Colors */
   --color-canvas-white:    #ffffff;
-  --color-cloud-mist:      #f6f8fa;
-  --color-frost-tint:      #eceff3;
-  --color-ash-border:      #cdd2d9;
-  --color-mist-border:     #c1c7d0;
-  --color-fog-text:        #a4abb8;
-  --color-steel-text:      #818898;
-  --color-slate-body:      #666d80;
-  --color-graphite-heading:#36394a;
-  --color-midnight-ink:    #272835;
-  --color-onyx:            #1a1b25;
-  --color-sunset-orange:   #ea580c;
-  --color-sunset-wash:     #fdba74;
-  --color-sunset-whisper:  #ffedd5;
+  --color-cloud-mist:      #fafafa;
+  --color-frost-tint:      #f4f4f5;
+  --color-ash-border:      #e4e4e7;
+  --color-mist-border:     #d4d4d8;
+  --color-fog-text:        #a1a1aa;
+  --color-steel-text:      #71717a;
+  --color-slate-body:      #52525b;
+  --color-graphite-heading:#18181b;
+  --color-midnight-ink:    #09090b;
+  --color-onyx:            #000000;
+  
+  --color-sunset-orange:   #2563eb; /* blue-600 */
+  --color-sunset-wash:     #bfdbfe; /* blue-200 */
+  --color-sunset-whisper:  #eff6ff; /* blue-50 */
 
   /* Typography */
   --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
@@ -40,56 +41,52 @@
   --radius-inputs:  8px;
   --radius-buttons: 8px;
 
-  /* Shadows — slate-tinted, never neutral-gray */
-  --shadow-card:    rgba(39, 40, 53, 0.1) 0px 0px 0px 1px;
-  --shadow-feature: rgba(39, 40, 53, 0.1) 0px 0px 0px 1px,
-                    rgba(39, 40, 53, 0.08) 0px 24px 24px -12px,
-                    rgba(39, 40, 53, 0.08) 0px 12px 12px -6px,
-                    rgba(39, 40, 53, 0.08) 0px 6px 6px -3px,
-                    rgba(39, 40, 53, 0.08) 0px 2px 2px -1px;
+  /* Shadows — Vercel style (neutral) */
+  --shadow-card:    rgba(0, 0, 0, 0.05) 0px 1px 2px 0px, rgba(0, 0, 0, 0.05) 0px 1px 3px 0px;
+  --shadow-feature: rgba(0, 0, 0, 0.04) 0px 4px 6px -1px, rgba(0, 0, 0, 0.02) 0px 2px 4px -1px;
   --shadow-hero:    rgba(0,0,0,0.05) 0px 2px 5px 0px,
                     rgba(0,0,0,0.04) 0px 9px 9px 0px,
                     rgba(0,0,0,0.02) 0px 20px 12px 0px,
                     rgba(0,0,0,0.01) 0px 35px 14px 0px,
                     rgba(0,0,0,0.01) 0px 0px 0px 1px;
 
-  /* shadcn token bridge → Lightdash palette */
-  --background:           #f6f8fa;
-  --foreground:           #36394a;
+  /* shadcn token bridge → Zinc palette */
+  --background:           #ffffff;
+  --foreground:           #09090b; /* zinc-950 */
   --card:                 #ffffff;
-  --card-foreground:      #36394a;
+  --card-foreground:      #09090b;
   --popover:              #ffffff;
-  --popover-foreground:   #36394a;
-  --primary:              #272835;
-  --primary-foreground:   #ffffff;
-  --secondary:            #f6f8fa;
-  --secondary-foreground: #36394a;
-  --muted:                #eceff3;
-  --muted-foreground:     #818898;
-  --accent:               #dfdbff;
-  --accent-foreground:    #36394a;
-  --destructive:          oklch(0.577 0.245 27.325);
-  --border:               #cdd2d9;
-  --input:                #cdd2d9;
-  --ring:                 #5e4cff;
+  --popover-foreground:   #09090b;
+  --primary:              #18181b; /* zinc-900 */
+  --primary-foreground:   #fafafa; /* zinc-50 */
+  --secondary:            #f4f4f5; /* zinc-100 */
+  --secondary-foreground: #18181b;
+  --muted:                #f4f4f5;
+  --muted-foreground:     #71717a; /* zinc-500 */
+  --accent:               #f4f4f5;
+  --accent-foreground:    #18181b;
+  --destructive:          #ef4444; /* red-500 */
+  --border:               #e4e4e7; /* zinc-200 */
+  --input:                #e4e4e7;
+  --ring:                 #2563eb; /* blue-600 */
   --radius:               0.5rem; /* 8px */
 
   /* Sidebar tokens */
-  --sidebar:                      #ffffff;
-  --sidebar-foreground:           #36394a;
-  --sidebar-primary:              #5e4cff;
-  --sidebar-primary-foreground:   #ffffff;
-  --sidebar-accent:               #f6f8fa;
-  --sidebar-accent-foreground:    #36394a;
-  --sidebar-border:               #cdd2d9;
-  --sidebar-ring:                 #5e4cff;
+  --sidebar:                      #fafafa;
+  --sidebar-foreground:           #09090b;
+  --sidebar-primary:              #18181b;
+  --sidebar-primary-foreground:   #fafafa;
+  --sidebar-accent:               #f4f4f5;
+  --sidebar-accent-foreground:    #09090b;
+  --sidebar-border:               #e4e4e7;
+  --sidebar-ring:                 #2563eb;
 
   /* Chart colors */
-  --chart-1: #5e4cff;
-  --chart-2: #c8ccf3;
-  --chart-3: #818898;
-  --chart-4: #36394a;
-  --chart-5: #dfdbff;
+  --chart-1: #2563eb;
+  --chart-2: #3b82f6;
+  --chart-3: #60a5fa;
+  --chart-4: #93c5fd;
+  --chart-5: #bfdbfe;
 }
 
 @theme inline {
@@ -141,7 +138,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    background-color: var(--color-cloud-mist);
+    background-color: var(--color-canvas-white);
     color: var(--color-graphite-heading);
     font-family: var(--font-body);
     font-size: 15px;
@@ -153,7 +150,7 @@
   /* Display headings — Space Grotesk territory */
   h1, h2, h3 {
     font-family: var(--font-display);
-    color: var(--color-graphite-heading);
+    color: var(--color-midnight-ink);
     letter-spacing: -0.02em;
     line-height: 1.15;
   }
@@ -162,31 +159,15 @@
   h4, h5, h6 {
     font-family: var(--font-body);
     font-weight: 600;
-    color: var(--color-graphite-heading);
+    color: var(--color-midnight-ink);
   }
 }
 
 /* ─── Utility Classes ─────────────────────────────────────────────────────────── */
 
-/* Pixel-art mosaic decoration — the single ornamental gesture */
-.pixel-mosaic {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 240px;
-  height: 240px;
-  pointer-events: none;
-  background-image:
-    /* Saturated violet tiles */
-    radial-gradient(circle, #5e4cff 0%, #5e4cff 100%),
-    radial-gradient(circle, #c8ccf3 0%, #c8ccf3 100%),
-    radial-gradient(circle, #dfdbff 0%, #dfdbff 100%);
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Crect x='8' y='16' width='8' height='8' fill='%235e4cff'/%3E%3Crect x='24' y='8' width='12' height='12' fill='%235e4cff'/%3E%3Crect x='48' y='24' width='8' height='8' fill='%23c8ccf3'/%3E%3Crect x='64' y='12' width='6' height='6' fill='%235e4cff'/%3E%3Crect x='80' y='32' width='10' height='10' fill='%23dfdbff'/%3E%3Crect x='100' y='8' width='8' height='8' fill='%235e4cff'/%3E%3Crect x='120' y='20' width='12' height='12' fill='%23c8ccf3'/%3E%3Crect x='140' y='4' width='6' height='6' fill='%235e4cff'/%3E%3Crect x='8' y='48' width='10' height='10' fill='%23c8ccf3'/%3E%3Crect x='32' y='56' width='8' height='8' fill='%235e4cff'/%3E%3Crect x='56' y='64' width='12' height='12' fill='%23dfdbff'/%3E%3Crect x='80' y='52' width='6' height='6' fill='%235e4cff'/%3E%3Crect x='104' y='60' width='8' height='8' fill='%23c8ccf3'/%3E%3C/svg%3E");
-}
-
-/* Volt Violet focus ring */
+/* Electric Blue focus ring */
 .focus-violet:focus-visible {
-  outline: 2px solid rgba(94, 76, 255, 0.5);
+  outline: 2px solid rgba(37, 99, 235, 0.5); /* blue-600 */
   outline-offset: 2px;
 }
 

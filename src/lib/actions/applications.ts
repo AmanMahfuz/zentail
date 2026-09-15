@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
-import { generateTailoredResume, generateCoverLetter } from "./phase3";
+import { GoogleGenAI, Type } from "@google/genai";
+import { generateCoverLetter } from "./phase3";
+import { ResumeAgent } from "../agents/resume-agent";
 
 // --- Types ---
 // For simplicity, we define the application status enum matching Supabase
-export type ApplicationStatus = "saved" | "applied" | "assessment" | "interview" | "offer" | "rejected";
+export type ApplicationStatus = "saved" | "applied" | "assessment" | "interview" | "offer" | "rejected" | "analyzing" | "review_needed" | "interviewing" | "outcome";
 
 // --- Update Status ---
 export async function updateApplicationStatus(
@@ -25,9 +27,9 @@ export async function updateApplicationStatus(
     return { success: false, message: "Please sign in again." };
   }
 
-  const { error } = await supabase
+  const { error } = await (supabase
     .from("applications")
-    .update({ status: newStatus, updated_at: new Date().toISOString() })
+    .update({ status: newStatus, updated_at: new Date().toISOString() } as any) as any)
     .eq("id", applicationId)
     .eq("user_id", user.id);
 
@@ -52,6 +54,8 @@ const createApplicationSchema = z.object({
   location: z.string().trim().max(120).optional(),
   applicationDate: z.string().optional(), // ISO date
   deadline: z.string().optional(),        // ISO date
+  followUpDate: z.string().optional(),
+  source: z.string().trim().max(120).optional(),
   notes: z.string().max(2000).optional(),
   resumeId: z.string().uuid().optional().or(z.literal("")),
   initialStatus: z.enum(["saved", "applied", "assessment", "interview", "offer", "rejected"]).default("saved"),
@@ -61,6 +65,7 @@ export type CreateApplicationState = {
   success: boolean;
   message?: string;
   fieldErrors?: Record<string, string[] | undefined>;
+  applicationId?: string;
 };
 
 export async function createApplication(
@@ -78,6 +83,8 @@ export async function createApplication(
     location: formData.get("location"),
     applicationDate: formData.get("applicationDate") || undefined,
     deadline: formData.get("deadline") || undefined,
+    followUpDate: formData.get("followUpDate") || undefined,
+    source: formData.get("source") || undefined,
     notes: formData.get("notes") || undefined,
     resumeId: formData.get("resumeId") || undefined,
     initialStatus: formData.get("initialStatus") || "saved",
@@ -136,6 +143,7 @@ export async function createApplication(
         deadline: parsed.data.deadline
           ? new Date(parsed.data.deadline).toISOString().slice(0, 10)
           : null,
+        source: parsed.data.source || null,
       })
       .select("id")
       .single();
@@ -156,8 +164,11 @@ export async function createApplication(
     applied_at: parsed.data.applicationDate
       ? new Date(parsed.data.applicationDate).toISOString()
       : new Date().toISOString(),
+    follow_up_date: parsed.data.followUpDate 
+      ? new Date(parsed.data.followUpDate).toISOString().slice(0, 10)
+      : null,
     notes: parsed.data.notes || null,
-  }).select("id").single();
+  } as any).select("id").single();
 
   if (appError || !appData) {
     console.error(appError);
@@ -168,14 +179,14 @@ export async function createApplication(
   // Note: in a true serverless environment (e.g. Vercel), this might be killed early.
   // For standard Next.js node environments, this allows background processing.
   Promise.allSettled([
-    generateTailoredResume(appData.id),
+    ResumeAgent.tailorForJob(appData.id),
     generateCoverLetter(appData.id)
   ]).catch(console.error);
 
   revalidatePath("/applications");
   revalidatePath("/resumes");
   revalidatePath("/dashboard");
-  return { success: true };
+  return { success: true, applicationId: appData.id };
 }
 
 // --- Delete Application ---
@@ -220,18 +231,48 @@ export async function updateApplication(
     return { success: false, message: "Please sign in again." };
   }
 
-  const { error } = await supabase
+  const { error } = await (supabase
     .from("applications")
     .update({ 
       ...(data.notes !== undefined ? { notes: data.notes } : {}),
       ...(data.status !== undefined ? { status: data.status } : {}),
+      updated_at: new Date().toISOString() 
+    } as any) as any)
+    .eq("id", applicationId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    return { success: false, message: "Could not update application." };
+  }
+
+  revalidatePath("/applications");
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+// --- Update Application Outcome ---
+export async function updateApplicationOutcome(
+  applicationId: string,
+  data: { outcome_status: string; stage_reached?: string; feedback?: string }
+): Promise<{ success: boolean; message?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return { success: false, message: "Unauthorized" };
+
+  const { error } = await supabase
+    .from("applications")
+    .update({ 
+      outcome_status: data.outcome_status,
+      stage_reached: data.stage_reached,
+      feedback: data.feedback,
       updated_at: new Date().toISOString() 
     })
     .eq("id", applicationId)
     .eq("user_id", user.id);
 
   if (error) {
-    return { success: false, message: "Could not update application." };
+    return { success: false, message: "Could not update application outcome." };
   }
 
   revalidatePath("/applications");

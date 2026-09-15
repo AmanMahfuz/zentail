@@ -14,6 +14,94 @@ export type Database = {
   }
   public: {
     Tables: {
+      user_projects: {
+        Row: {
+          created_at: string
+          description: string | null
+          github_url: string | null
+          id: string
+          live_url: string | null
+          skills_demonstrated: string[] | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          github_url?: string | null
+          id?: string
+          live_url?: string | null
+          skills_demonstrated?: string[] | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          github_url?: string | null
+          id?: string
+          live_url?: string | null
+          skills_demonstrated?: string[] | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_projects_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      user_skills: {
+        Row: {
+          created_at: string
+          id: string
+          proof_description: string | null
+          proof_links: string[] | null
+          proof_status: string | null
+          skill_name: string
+          updated_at: string
+          user_id: string
+          years_experience: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          proof_description?: string | null
+          proof_links?: string[] | null
+          proof_status?: string | null
+          skill_name: string
+          updated_at?: string
+          user_id: string
+          years_experience?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          proof_description?: string | null
+          proof_links?: string[] | null
+          proof_status?: string | null
+          skill_name?: string
+          updated_at?: string
+          user_id?: string
+          years_experience?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_skills_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       applications: {
         Row: {
           applied_at: string | null
@@ -23,6 +111,11 @@ export type Database = {
           notes: string | null
           resume_id: string | null
           status: Database["public"]["Enums"]["application_status"]
+          follow_up_date: string | null
+          outcome_status: string | null
+          feedback: string | null
+          rejection_reason: string | null
+          stage_reached: string | null
           updated_at: string
           user_id: string
         }
@@ -34,6 +127,11 @@ export type Database = {
           notes?: string | null
           resume_id?: string | null
           status?: Database["public"]["Enums"]["application_status"]
+          follow_up_date?: string | null
+          outcome_status?: string | null
+          feedback?: string | null
+          rejection_reason?: string | null
+          stage_reached?: string | null
           updated_at?: string
           user_id: string
         }
@@ -45,6 +143,11 @@ export type Database = {
           notes?: string | null
           resume_id?: string | null
           status?: Database["public"]["Enums"]["application_status"]
+          follow_up_date?: string | null
+          outcome_status?: string | null
+          feedback?: string | null
+          rejection_reason?: string | null
+          stage_reached?: string | null
           updated_at?: string
           user_id?: string
         }

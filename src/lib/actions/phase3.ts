@@ -119,13 +119,18 @@ export async function generateTailoredResume(applicationId: string) {
       }
     }
 
-    const prompt = `You are an ATS resume generator. Return ONLY a raw JSON object.
+    const prompt = `You are an expert ATS resume writer. Return ONLY a raw JSON object.
 
 User resume (truncated):
 ${truncate(resumeText)}
 
 Job: ${job.title} at ${job.company}
 ${truncate(job.description || "")}
+
+**CRITICAL RULE: Truthful Tailoring**
+- You may reorder, highlight, or rephrase existing bullet points to better match the job description.
+- You MUST NOT invent, hallucinate, or add skills, experiences, metrics, or degrees that are not explicitly present in the original resume.
+- Any modifications must be supported by the user's provided evidence.
 
 Format the resume_markdown to match this exact shape:
 # Name
@@ -158,9 +163,10 @@ date
             resume_markdown: { type: Type.STRING },
             skills_matched: { type: Type.ARRAY, items: { type: Type.STRING } },
             skills_missing: { type: Type.ARRAY, items: { type: Type.STRING } },
-            ats_score: { type: Type.INTEGER }
+            ats_score: { type: Type.INTEGER },
+            tailoring_log: { type: Type.ARRAY, items: { type: Type.STRING } }
           },
-          required: ["resume_markdown", "skills_matched", "skills_missing", "ats_score"]
+          required: ["resume_markdown", "skills_matched", "skills_missing", "ats_score", "tailoring_log"]
         }
       }
     });
@@ -193,7 +199,7 @@ date
       return { success: false, message: "Failed to save generated resume." };
     }
 
-    return { success: true, data: inserted };
+    return { success: true, data: { ...inserted, tailoring_log: parsed.tailoring_log } };
   } catch (error: any) {
     console.error("generateTailoredResume error:", error);
     return { success: false, message: error.message };

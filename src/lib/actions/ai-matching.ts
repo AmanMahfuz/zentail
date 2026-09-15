@@ -3,11 +3,15 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { extractText } from "unpdf";
+import { Cache } from "@/lib/cache";
+import crypto from "crypto";
 
 export type JobMatchResult = {
   match_score: number;
   matched_skills: string[];
-  missing_skills: string[];
+  missing_evidence: string[];
+  suspicious_requirements: string[];
+  scam_risk_signals: string[];
   recommendations: string[];
 };
 
@@ -77,6 +81,17 @@ export async function matchJobDescription(
       }
     }
 
+    // --- CACHE CHECK ---
+    const jdHash = crypto.createHash("md5").update(jobDescription).digest("hex");
+    const safeResumeId = resumeId || "no_resume";
+    
+    const cachedMatch = await Cache.resumeMatch.get(safeResumeId, jdHash);
+    if (cachedMatch) {
+      console.log(`✅ matchJobDescription returning from Cache (Resume: ${safeResumeId})`);
+      return { success: true, result: cachedMatch as any };
+    }
+    // -------------------
+
     const prompt = `
 You are a senior technical recruiter with 15 years of experience evaluating candidates for software engineering roles.
 
@@ -95,15 +110,19 @@ Calculate match_score (0–100) based on:
 - Distinguish between "nice to have" and "required" skills in the job description.
 - The match_score must be a whole number.
 - matched_skills: list only skills clearly present in BOTH job description AND resume.
-- missing_skills: list only skills explicitly required by the job that are absent or unclear in the resume.
-- recommendations: exactly 3 specific, actionable steps the candidate can take to close the gap. Be concrete (e.g. "Build a REST API project using Node.js and Express, deploy it on Railway, and add it to your resume" — not just "learn Node.js").
+- missing_evidence: list only skills explicitly required by the job that are absent or lack concrete evidence in the resume.
+- suspicious_requirements: Look closely for any demands in the JD that are unrealistic for the given title (e.g. 10 years experience for a junior role, expecting a full-stack unicorn for low pay).
+- scam_risk_signals: Look for extreme red flags (e.g. "pay for training", "send money", "WhatsApp interview", "unregistered domain"). If none, return an empty array.
+- recommendations: exactly 3 specific, actionable steps the candidate can take to close the gap based on missing evidence.
 
 ## Output
 Respond ONLY with a JSON object matching this schema exactly:
 {
   "match_score": number,
   "matched_skills": string[],
-  "missing_skills": string[],
+  "missing_evidence": string[],
+  "suspicious_requirements": string[],
+  "scam_risk_signals": string[],
   "recommendations": string[]
 }
 
@@ -127,15 +146,20 @@ ${resumeText}
           properties: {
             match_score: { type: Type.INTEGER },
             matched_skills: { type: Type.ARRAY, items: { type: Type.STRING } },
-            missing_skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+            missing_evidence: { type: Type.ARRAY, items: { type: Type.STRING } },
+            suspicious_requirements: { type: Type.ARRAY, items: { type: Type.STRING } },
+            scam_risk_signals: { type: Type.ARRAY, items: { type: Type.STRING } },
             recommendations: { type: Type.ARRAY, items: { type: Type.STRING } }
           },
-          required: ["match_score", "matched_skills", "missing_skills", "recommendations"]
+          required: ["match_score", "matched_skills", "missing_evidence", "suspicious_requirements", "scam_risk_signals", "recommendations"]
         }
       }
     });
-
     const parsedResult = JSON.parse(response.text || "{}") as JobMatchResult;
+
+    // --- SET CACHE ---
+    await Cache.resumeMatch.set(safeResumeId, jdHash, parsedResult);
+    // -----------------
 
     return { success: true, result: parsedResult };
 
@@ -196,6 +220,15 @@ export async function extractJobDetails(
       return { success: false, message: "Please provide a longer job description." };
     }
 
+    // --- CACHE CHECK ---
+    const jdHash = crypto.createHash("md5").update(textToAnalyze).digest("hex");
+    const cachedParsed = await Cache.jdParse.get(jdHash);
+    if (cachedParsed) {
+      console.log("✅ extractJobDetails returning from Cache");
+      return { success: true, result: cachedParsed as any };
+    }
+    // -------------------
+
     const ai = new GoogleGenAI({ apiKey });
 
     const prompt = `
@@ -248,7 +281,10 @@ ${textToAnalyze.slice(0, 15000)} // Limiting to prevent token limits on large we
     console.log("AI Extracted Text:", responseText);
     
     const parsedResult = JSON.parse(responseText) as ExtractedJobDetails;
-    console.log("Parsed Result:", parsedResult);
+
+    // --- SET CACHE ---
+    await Cache.jdParse.set(jdHash, parsedResult);
+    // -----------------
 
     return { success: true, result: parsedResult };
 
