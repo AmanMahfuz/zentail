@@ -23,7 +23,7 @@ export async function POST(
     // 1. Fetch current application to verify ownership
     const { data: application, error: fetchError } = await (supabase
       .from("applications")
-      .select("id, requirement_maps") as any)
+      .select("id, matched_skills, missing_skills, partial_skills, critical_missing") as any)
       .eq("id", resolvedParams.id)
       .eq("user_id", user.id)
       .single();
@@ -32,33 +32,32 @@ export async function POST(
       return NextResponse.json({ error: "Application not found" }, { status: 404 });
     }
 
-    // Evidence table does not exist in schema. Skip inserting for now.
+    // 2. Move skill from missing/partial to matched
+    let matched = application.matched_skills || [];
+    let partial = application.partial_skills || [];
+    let missing = application.missing_skills || [];
+    let critical = application.critical_missing || [];
 
-    // 3. Update the specific requirement map
-    // We update the local requirement map for this specific app so the UI reflects the new evidence immediately
-    let reqMap = application.requirement_maps as any;
-    if (reqMap && reqMap.requirements) {
-      reqMap.requirements = reqMap.requirements.map((r: any) => {
-        if (r.requirement === requirement) {
-          return {
-            ...r,
-            evidence: evidence,
-            status: "found", // Optimistically mark as found since user provided evidence
-            suggestedAction: ""
-          };
-        }
-        return r;
-      });
+    // Remove from partial/missing/critical
+    partial = partial.filter((s: string) => s !== requirement);
+    missing = missing.filter((s: string) => s !== requirement);
+    critical = critical.filter((s: string) => s !== requirement);
 
-      // Recalculate counts
-      reqMap.matched_count = reqMap.requirements.filter((r: any) => r.status === "found").length;
-      reqMap.missing_count = reqMap.requirements.filter((r: any) => r.status !== "found").length;
-
-      await (supabase
-        .from("applications")
-        .update({ requirement_maps: reqMap } as any) as any)
-        .eq("id", resolvedParams.id);
+    // Add to matched if not already there
+    if (!matched.includes(requirement)) {
+      matched.push(requirement);
     }
+
+    // Update DB
+    await (supabase
+      .from("applications")
+      .update({
+        matched_skills: matched,
+        partial_skills: partial,
+        missing_skills: missing,
+        critical_missing: critical
+      } as any) as any)
+      .eq("id", resolvedParams.id);
 
     return NextResponse.json({ success: true });
 

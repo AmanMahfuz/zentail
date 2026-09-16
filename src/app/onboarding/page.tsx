@@ -7,7 +7,9 @@ import { createClient } from "@/lib/supabase/client";
 
 type PublicStep = "confirm_skills" | "creating_account";
 
-export default function OnboardingPage() {
+import { Suspense } from "react";
+
+function OnboardingContent() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [publicStep, setPublicStep] = useState<PublicStep>("confirm_skills");
   const [parsedResume, setParsedResume] = useState<any>(null);
@@ -339,4 +341,12 @@ export default function OnboardingPage() {
   }
 
   return null; // Will redirect
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>Loading...</div>}>
+      <OnboardingContent />
+    </Suspense>
+  );
 }

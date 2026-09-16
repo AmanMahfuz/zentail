@@ -24,22 +24,68 @@ export default async function ApplicationDetailPage({
   if (!appData) redirect("/applications");
 
   // Temporarily map legacy schema to new requirements while waiting for DB migration
+  // Convert simple string arrays from db (matched_skills, etc) into RequirementMap shapes
+  const requirements: any[] = [];
+  
+  if (appData.matched_skills) {
+    appData.matched_skills.forEach((skill: string) => {
+      requirements.push({
+        requirement: skill,
+        type: "Skill",
+        importance: "high",
+        evidence: "Mentioned in resume",
+        status: "found",
+        suggestedAction: ""
+      });
+    });
+  }
+
+  if (appData.partial_skills) {
+    appData.partial_skills.forEach((skill: string) => {
+      requirements.push({
+        requirement: skill,
+        type: "Skill",
+        importance: "medium",
+        evidence: null,
+        status: "partial",
+        suggestedAction: "Strengthen this on your resume or prep for questions."
+      });
+    });
+  }
+
+  if (appData.missing_skills || appData.critical_missing) {
+    const missing = [...(appData.missing_skills || []), ...(appData.critical_missing || [])];
+    // Deduplicate
+    const uniqueMissing = Array.from(new Set(missing));
+    uniqueMissing.forEach((skill: string) => {
+      requirements.push({
+        requirement: skill,
+        type: "Skill",
+        importance: "high",
+        evidence: null,
+        status: "missing",
+        suggestedAction: "Consider how to frame adjacent experience or start learning this."
+      });
+    });
+  }
+
   const app = {
     ...appData,
-    company_name: appData.job?.company || "Unknown Company",
-    job_title: appData.job?.title || "Unknown Role",
-    fit_score: 85,
-    company_type: "Startup",
-    status: "review_needed", // Mock status for UI preview
+    company_name: appData.company_name || appData.job?.company || "Unknown Company",
+    job_title: appData.job_title || appData.job?.title || "Unknown Role",
+    fit_score: appData.fit_score || null,
+    company_type: appData.company_type || null,
+    status: appData.status || "review_needed",
     requirement_maps: {
-      matched_count: 5,
-      missing_count: 2,
-      requirements: [
+      matched_count: (appData.matched_skills || []).length,
+      missing_count: (appData.missing_skills || []).length + (appData.critical_missing || []).length,
+      requirements: requirements.length > 0 ? requirements : [
+        // Fallback mock if nothing is found
         { requirement: "React", type: "Skill", importance: "high", evidence: "Built 5 apps", status: "found", suggestedAction: "" },
         { requirement: "GraphQL", type: "Skill", importance: "medium", evidence: null, status: "missing", suggestedAction: "Build a small project to show GraphQL knowledge" }
       ]
     },
-    resumes_generated: { status: "ready", match_percentage: 92 },
+    resumes_generated: { status: "ready", match_percentage: appData.fit_score || 92 },
     cover_letters_generated: { status: "ready" },
     interview_prep: { status: "generating" }
   };

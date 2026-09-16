@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { jobUrl, description, company, title } = await req.json();
+    const { jobUrl, description, company, title, preComputedAnalysis } = await req.json();
 
     // 1. Create Job record
     const { data: job, error: jobError } = await supabase
@@ -28,16 +28,36 @@ export async function POST(req: Request) {
       .select()
       .single();
 
-    if (jobError) throw jobError;
+    if (jobError) console.warn("Job creation error (may be ignored if schema uses flattened fields):", jobError);
 
-    // 2. Create Application record (status: 'analyzing')
+    // 2. Map precomputed analysis if available
+    const appData: any = {
+      user_id: user.id,
+      job_title: title || "New Role",
+      company_name: company || "Unknown Company",
+      job_description: description,
+      job_link: jobUrl,
+      status: "analyzing",
+    };
+
+    if (job) {
+      appData.job_id = job.id;
+    }
+
+    if (preComputedAnalysis) {
+      appData.status = "review_needed";
+      appData.fit_score = preComputedAnalysis.fitScore;
+      appData.fit_summary = preComputedAnalysis.whatIsHoldingBack || preComputedAnalysis.verdict;
+      appData.matched_skills = preComputedAnalysis.matched || [];
+      appData.partial_skills = preComputedAnalysis.partial || [];
+      appData.missing_skills = preComputedAnalysis.missing || [];
+      appData.improvements = preComputedAnalysis.improvements || [];
+    }
+
+    // 3. Create Application record
     const { data: application, error: appError } = await (supabase
       .from("applications")
-      .insert({
-        user_id: user.id,
-        job_id: job.id,
-        status: "analyzing"
-      } as any) as any)
+      .insert(appData as any) as any)
       .select()
       .single();
 

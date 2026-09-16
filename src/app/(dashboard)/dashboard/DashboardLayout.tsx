@@ -26,6 +26,28 @@ type Props = {
   children?: React.ReactNode;
 };
 
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, { bg: string; text: string }> = {
+    saved: { bg: "#f1f5f9", text: "#475569" },
+    applied: { bg: "#dbeafe", text: "#1e40af" },
+    interview: { bg: "#fef08a", text: "#854d0e" },
+    offer: { bg: "#dcfce7", text: "#166534" },
+    rejected: { bg: "#fee2e2", text: "#991b1b" }
+  };
+  const s = styles[status] || styles.saved;
+  return (
+    <span className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider" style={{ backgroundColor: s.bg, color: s.text }}>
+      {status}
+    </span>
+  );
+}
+
+function Countdown({ scheduledAt }: { scheduledAt: string }) {
+  const date = new Date(scheduledAt);
+  let text = formatDistanceToNow(date, { addSuffix: true });
+  return <div className="text-xl font-bold mt-1" style={{ color: "var(--color-sunset-orange)" }}>{text}</div>;
+}
+
 // ... skipped function definitions ...
 
 export default function DashboardLayoutClient({

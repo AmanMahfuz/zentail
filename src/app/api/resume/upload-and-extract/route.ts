@@ -126,10 +126,10 @@ export async function POST(request: NextRequest) {
 }
 
 async function saveToEvidenceBase(userId: string, data: any) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Save personal info
-  await supabase.from("user_evidence").upsert({
+  await (supabase as any).from("user_evidence").upsert({
     user_id: userId,
     full_name: data.personal?.fullName,
     email: data.personal?.email,
@@ -143,7 +143,7 @@ async function saveToEvidenceBase(userId: string, data: any) {
 
   // Save skills
   if (data.skills?.length > 0) {
-    await supabase.from("evidence_skills").upsert(
+    await (supabase as any).from("evidence_skills").upsert(
       data.skills.map((s: any) => ({
         user_id: userId,
         skill_name: s.name,
@@ -157,7 +157,7 @@ async function saveToEvidenceBase(userId: string, data: any) {
 
   // Save experience
   if (data.experience?.length > 0) {
-    await supabase.from("evidence_experience").insert(
+    await (supabase as any).from("evidence_experience").insert(
       data.experience.map((e: any, i: number) => ({
         user_id: userId,
         job_title: e.jobTitle,
@@ -175,7 +175,7 @@ async function saveToEvidenceBase(userId: string, data: any) {
 
   // Save projects
   if (data.projects?.length > 0) {
-    await supabase.from("evidence_projects").insert(
+    await (supabase as any).from("evidence_projects").insert(
       data.projects.map((p: any, i: number) => ({
         user_id: userId,
         title: p.title,
@@ -191,7 +191,7 @@ async function saveToEvidenceBase(userId: string, data: any) {
 
   // Save education
   if (data.education?.length > 0) {
-    await supabase.from("evidence_education").insert(
+    await (supabase as any).from("evidence_education").insert(
       data.education.map((e: any, i: number) => ({
         user_id: userId,
         degree: e.degree,
@@ -212,16 +212,16 @@ async function createResumeVersion(
   originType: string,
   versionNumber: number
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Mark all existing as not latest
-  await supabase
+  await (supabase as any)
     .from("resume_versions")
     .update({ is_latest: false })
     .eq("user_id", userId);
 
   // Create new version
-  const { data: version, error } = await supabase
+  const { data: version, error } = await (supabase as any)
     .from("resume_versions")
     .insert({
       user_id: userId,

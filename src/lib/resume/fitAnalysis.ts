@@ -8,11 +8,11 @@ export async function analyzeFit(
   jobDescription: string,
   resumeVersionId?: string
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   // Get latest resume (or specific version)
-  let resumeQuery = supabase
+  let resumeQuery = (supabase as any)
     .from("resume_versions")
     .select("content, version_number, version_label");
     
@@ -22,7 +22,7 @@ export async function analyzeFit(
     resumeQuery = resumeQuery.eq("user_id", userId).eq("is_latest", true);
   }
   
-  const { data: resume } = await resumeQuery.single();
+  const { data: resume } = await (resumeQuery as any).single();
 
   if (!resume) throw new Error("No resume found");
 

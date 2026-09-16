@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
   try {
     const { versionId, changes } = await request.json();
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     }
 
     // Get the version being promoted
-    const { data: newLatest, error: getError } = await supabase
+    const { data: newLatest, error: getError } = await (supabase as any)
       .from("resume_versions")
       .select("*, user_id")
       .eq("id", versionId)
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     }
 
     // Get current latest (to compare)
-    const { data: currentLatest } = await supabase
+    const { data: currentLatest } = await (supabase as any)
       .from("resume_versions")
       .select("id")
       .eq("user_id", user.id)
@@ -35,13 +35,13 @@ export async function POST(request: Request) {
       .single();
 
     // Demote all existing latest
-    await supabase
+    await (supabase as any)
       .from("resume_versions")
       .update({ is_latest: false })
       .eq("user_id", user.id);
 
     // Promote this version to latest
-    await supabase
+    await (supabase as any)
       .from("resume_versions")
       .update({
         is_latest: true,
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
     // Record what changed (user may have edited further after AI tailoring)
     if (currentLatest && changes?.length > 0) {
-      await supabase.from("resume_version_changes").insert({
+      await (supabase as any).from("resume_version_changes").insert({
         from_version_id: currentLatest.id,
         to_version_id: versionId,
         changes: changes,
@@ -74,12 +74,12 @@ export async function POST(request: Request) {
 
 // When user saves a new latest, update evidence base too
 async function syncEvidenceFromVersion(userId: string, content: any) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // Update skills from this version
   if (content.skills?.length > 0) {
     for (const skill of content.skills) {
-      await supabase.from("evidence_skills").upsert({
+      await (supabase as any).from("evidence_skills").upsert({
         user_id: userId,
         skill_name: skill.name || skill,
         category: skill.category || null,
@@ -90,7 +90,7 @@ async function syncEvidenceFromVersion(userId: string, content: any) {
 
   // Update summary
   if (content.summary) {
-    await supabase.from("user_evidence")
+    await (supabase as any).from("user_evidence")
       .update({ summary: content.summary, last_synced_at: new Date().toISOString() })
       .eq("user_id", userId);
   }

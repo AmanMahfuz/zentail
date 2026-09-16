@@ -2,9 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createClient();
+  const { id } = await params;
+  const supabase = await createClient();
 
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -12,7 +13,7 @@ export async function GET(
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: version, error } = await supabase
+  const { data: version, error } = await (supabase as any)
     .from("resume_versions")
     .select(`
       *,
@@ -22,7 +23,7 @@ export async function GET(
         created_at
       )
     `)
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("user_id", user.id)
     .single();
 
