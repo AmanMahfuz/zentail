@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Plus, Trash2, GripVertical, Download, Save, Eye,
@@ -311,6 +311,24 @@ export default function ResumeBuilderClient({ initialData }: { initialData?: Par
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [view, setView] = useState<"split" | "editor" | "preview">("split");
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+    try {
+      const draft = localStorage.getItem("resume_builder_draft");
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed) setData(parsed);
+      }
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    if (isClient) {
+      localStorage.setItem("resume_builder_draft", JSON.stringify(data));
+    }
+  }, [data, isClient]);
 
   const ats = calcATS(data);
   const atsColor = ats >= 80 ? "#16a34a" : ats >= 60 ? "#d97706" : "#dc2626";
@@ -355,6 +373,9 @@ export default function ResumeBuilderClient({ initialData }: { initialData?: Par
         body: JSON.stringify({ markdown, name: data.contact.name || "My Resume" }),
       });
       setSaved(true);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("resume_builder_draft");
+      }
       setTimeout(() => setSaved(false), 3000);
     } catch { /* swallow */ }
     setSaving(false);

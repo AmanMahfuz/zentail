@@ -11,6 +11,9 @@ const navItems: Array<{ name: string; href: string; icon: any; badge?: string }>
   { name: "Dashboard",         href: "/dashboard",    icon: LayoutDashboard },
   { name: "Applications",      href: "/applications", icon: Briefcase },
   { name: "Resumes",           href: "/resumes",      icon: FileText },
+  { name: "Interviews",        href: "/interviews",   icon: Video },
+  { name: "Job Matches",       href: "/jobs/match",   icon: CheckCircle2 },
+  { name: "Skills Engine",     href: "/skills",       icon: BarChart3 },
 ];
 
 export function SidebarNav() {
