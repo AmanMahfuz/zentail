@@ -11,7 +11,7 @@ export default async function ApplicationDetailPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/signin");
 
-  const { data: appData } = await supabase
+  const { data: appDataRaw } = await supabase
     .from("applications")
     .select(`
       *,
@@ -21,7 +21,9 @@ export default async function ApplicationDetailPage({
     .eq("user_id", user.id)
     .single();
 
-  if (!appData) redirect("/applications");
+  if (!appDataRaw) redirect("/applications");
+
+  const appData = appDataRaw as any;
 
   // Temporarily map legacy schema to new requirements while waiting for DB migration
   // Convert simple string arrays from db (matched_skills, etc) into RequirementMap shapes
