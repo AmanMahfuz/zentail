@@ -129,14 +129,25 @@ export default function SignInPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
+            className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60 flex items-center justify-center gap-2"
             style={{ backgroundColor: "var(--color-sunset-orange)" }}
             onMouseEnter={e => !loading && ((e.target as HTMLElement).style.backgroundColor = "#4c3ede")}
             onMouseLeave={e => !loading && ((e.target as HTMLElement).style.backgroundColor = "var(--color-sunset-orange)")}
           >
+            {loading && (
+              <div style={{
+                width: 16,
+                height: 16,
+                borderRadius: "50%",
+                border: "2px solid rgba(255,255,255,0.3)",
+                borderTopColor: "#fff",
+                animation: "spin 0.8s linear infinite"
+              }} />
+            )}
             {loading ? "Signing in…" : "Sign In"}
           </button>
         </form>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
         <p className="text-center text-sm mt-6" style={{ color: "var(--color-slate-body)" }}>
           Don&apos;t have an account?{" "}

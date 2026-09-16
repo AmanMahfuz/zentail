@@ -40,17 +40,63 @@ type ResumeData = {
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
-const INITIAL: ResumeData = {
-  contact: { name: "", email: "", phone: "", location: "", linkedin: "", portfolio: "" },
-  summary: "",
-  experience: [],
-  education: [],
-  skills: [
-    { category: "Languages", items: "" },
-    { category: "Frameworks", items: "" },
-    { category: "Tools", items: "" },
+const DEFAULT_RESUME: ResumeData = {
+  contact: { name: "John Doe", email: "johndoe@example.com", phone: "(555) 123-4567", location: "San Francisco, CA", linkedin: "linkedin.com/in/johndoe", portfolio: "github.com/johndoe" },
+  summary: "Results-driven Software Engineer with 5+ years of experience building scalable web applications. Proven ability to lead teams, optimize performance, and deliver high-quality software solutions on time.",
+  experience: [
+    {
+      id: uid(),
+      company: "Tech Corp",
+      title: "Senior Software Engineer",
+      startDate: "Jan 2021",
+      endDate: "Present",
+      current: true,
+      bullets: [
+        "Led the migration of a legacy monolithic architecture to microservices, improving system uptime by 99.9%.",
+        "Mentored 3 junior developers and established code review guidelines."
+      ]
+    },
+    {
+      id: uid(),
+      company: "Startup Inc",
+      title: "Software Engineer",
+      startDate: "Jun 2018",
+      endDate: "Dec 2020",
+      current: false,
+      bullets: [
+        "Developed and maintained a high-traffic React application serving 100k+ monthly active users.",
+        "Optimized database queries, reducing average API response time by 30%."
+      ]
+    }
   ],
-  projects: [],
+  education: [
+    {
+      id: uid(),
+      school: "University of Technology",
+      degree: "Bachelor of Science",
+      field: "Computer Science",
+      startDate: "Aug 2014",
+      endDate: "May 2018",
+      gpa: "3.8/4.0"
+    }
+  ],
+  skills: [
+    { category: "Languages", items: "JavaScript, TypeScript, Python, Java" },
+    { category: "Frameworks", items: "React, Next.js, Node.js, Express" },
+    { category: "Tools", items: "Git, Docker, AWS, CI/CD" },
+  ],
+  projects: [
+    {
+      id: uid(),
+      name: "Open Source CMS",
+      tech: "React, Node.js, PostgreSQL",
+      url: "github.com/johndoe/cms",
+      bullets: [
+        "Built a headless CMS from scratch, adopted by 500+ developers.",
+        "Implemented role-based access control and comprehensive API documentation."
+      ]
+    }
+  ],
 };
 
 // ─── ATS Score Calculator ──────────────────────────────────────────
@@ -258,8 +304,10 @@ function Textarea({ label, value, onChange, placeholder, rows = 3 }: {
 }
 
 // ─── Main Builder ──────────────────────────────────────────────────
-export default function ResumeBuilderClient() {
-  const [data, setData] = useState<ResumeData>(INITIAL);
+export default function ResumeBuilderClient({ initialData }: { initialData?: Partial<ResumeData> }) {
+  // Merge initial data if present, otherwise use default resume
+  const startingData = initialData ? { ...DEFAULT_RESUME, ...initialData, contact: { ...DEFAULT_RESUME.contact, ...(initialData.contact || {}) } } : DEFAULT_RESUME;
+  const [data, setData] = useState<ResumeData>(startingData as ResumeData);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [view, setView] = useState<"split" | "editor" | "preview">("split");

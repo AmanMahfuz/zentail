@@ -36,6 +36,7 @@ export default function LandingPage() {
   const handleAnalyze = async () => {
     if (!resumeFile || !jd.trim()) return;
     setStep("analyzing");
+    setAnalyzeProgress([]);
 
     const steps = [
       "Understanding job requirements...",
@@ -45,13 +46,8 @@ export default function LandingPage() {
       "Finding resume opportunities..."
     ];
 
-    // Show progress one by one
-    for (let i = 0; i < steps.length; i++) {
-      await new Promise(r => setTimeout(r, 600));
-      setAnalyzeProgress(prev => [...prev, steps[i]]);
-    }
-
-    try {
+    // Start fetch in parallel
+    const fetchPromise = (async () => {
       const formData = new FormData();
       formData.append("resume", resumeFile);
       formData.append("jobDescription", jd);
@@ -60,8 +56,18 @@ export default function LandingPage() {
         method: "POST",
         body: formData
       });
+      if (!response.ok) throw new Error("Failed");
+      return response.json();
+    })();
 
-      const data = await response.json();
+    // Show progress one by one slowly to mask AI latency
+    for (let i = 0; i < steps.length; i++) {
+      await new Promise(r => setTimeout(r, 1200));
+      setAnalyzeProgress(prev => [...prev, steps[i]]);
+    }
+
+    try {
+      const data = await fetchPromise;
 
       // Save to sessionStorage for onboarding
       sessionStorage.setItem("pending_jd", jd);
@@ -72,6 +78,7 @@ export default function LandingPage() {
       setStep("result");
     } catch {
       setStep("input");
+      alert("Analysis failed. Please try again.");
     }
   };
 
@@ -360,7 +367,7 @@ export default function LandingPage() {
               {s}
             </div>
           ))}
-          {analyzeProgress.length < 5 && (
+          {analyzeProgress.length < 5 ? (
             <div style={{
               display: "flex",
               alignItems: "center",
@@ -381,6 +388,24 @@ export default function LandingPage() {
                 "Comparing your experience...",
                 "Identifying gaps...",
                 "Finding resume opportunities..."][analyzeProgress.length]}
+            </div>
+          ) : (
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              fontSize: 14,
+              color: "var(--muted-foreground)"
+            }}>
+              <div style={{
+                width: 16,
+                height: 16,
+                borderRadius: "50%",
+                border: "2px solid var(--primary)",
+                borderTopColor: "transparent",
+                animation: "spin 0.8s linear infinite"
+              }} />
+              Finalizing report with AI...
             </div>
           )}
         </div>

@@ -201,12 +201,23 @@ function SignUpForm() {
 
           <button
             type="submit" disabled={loading || !agreed || !pwMatch}
-            className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
+            className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             style={{ backgroundColor: "var(--color-sunset-orange)" }}
           >
+            {loading && (
+              <div style={{
+                width: 16,
+                height: 16,
+                borderRadius: "50%",
+                border: "2px solid rgba(255,255,255,0.3)",
+                borderTopColor: "#fff",
+                animation: "spin 0.8s linear infinite"
+              }} />
+            )}
             {loading ? "Creating account…" : "Create Account"}
           </button>
         </form>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
         <p className="text-center text-sm mt-6" style={{ color: "var(--color-slate-body)" }}>
           Already have an account?{" "}
