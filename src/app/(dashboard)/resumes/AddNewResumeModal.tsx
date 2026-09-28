@@ -66,7 +66,7 @@ export function AddNewResumeModal({ children }: { children?: React.ReactElement 
     <>
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger
-          nativeButton={false}
+          nativeButton={true}
           render={
             children || (
               <button

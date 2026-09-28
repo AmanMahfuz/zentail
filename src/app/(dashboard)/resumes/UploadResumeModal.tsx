@@ -67,7 +67,7 @@ export function UploadResumeModal({ children, forceOpen = false, onClose }: { ch
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       {!forceOpen && (
         <DialogTrigger
-          nativeButton={false}
+          nativeButton={true}
           render={
             children || (
               <Button className="bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl shadow-xs h-10 px-5 text-sm font-medium">

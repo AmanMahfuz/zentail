@@ -27,7 +27,10 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch sessions' }, { status: 500 });
     }
 
-    return NextResponse.json(sessions || []);
+    return NextResponse.json({
+      success: true,
+      sessions: sessions || [],
+    });
   } catch (error) {
     console.error('Error in fetch sessions route:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

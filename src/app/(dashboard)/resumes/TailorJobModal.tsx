@@ -106,7 +106,7 @@ export function TailorJobModal({
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger
-        nativeButton={false}
+        nativeButton={true}
         render={
           children ? (
             children as React.ReactElement

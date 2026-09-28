@@ -402,7 +402,7 @@ Aman Mahfuz`
   const sessionsData = await sessionsRes.json();
   console.log(`   ✅ Retrievable Sessions count: ${sessionsData.sessions?.length}`);
   sessionsData.sessions?.forEach((s, idx) => {
-    console.log(`      ${idx + 1}. Mode: ${s.mode.toUpperCase()} | Score: ${s.overall_score}% | Date: ${new Date(s.created_at).toLocaleTimeString()}`);
+    console.log(`      ${idx + 1}. Mode: ${s.mode.toUpperCase()} | Score: ${s.score || s.overall_score}% | Date: ${new Date(s.created_at).toLocaleTimeString()}`);
   });
 
   console.log('\n🎉 ALL END-TO-END VERIFICATIONS PASSED SUCCESSFULLY!');

@@ -97,7 +97,8 @@ IMPORTANT:
 - Include keywords that would indicate a strong answer
 - Vary difficulty levels (not all hard, not all easy)
 - Follow-up questions should probe deeper into initial answer
-- Make questions realistic for actual interviews at this company`;
+- Make questions realistic for actual interviews at this company
+- Keep howToAnswer concise (1-2 sentences) and sampleAnswer crisp (2-3 sentences) for maximum clarity and fast generation`;
 
         const response = await model.generateContent(prompt);
         const responseText = response.response.text();

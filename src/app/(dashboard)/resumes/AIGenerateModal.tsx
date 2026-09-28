@@ -53,7 +53,7 @@ export function AIGenerateModal({ children, forceOpen = false, onClose }: { chil
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       {!forceOpen && (
         <DialogTrigger
-          nativeButton={false}
+          nativeButton={true}
           render={
             children || (
               <button className={cn(buttonVariants(), "bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl shadow-sm h-11 px-6 font-medium")}>
