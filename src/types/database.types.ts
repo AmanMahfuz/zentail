@@ -36,6 +36,10 @@ export type Database = {
           outcome: string | null
           partial_skills: string[] | null
           resume_version_id: string | null
+          job_id?: string | null
+          resume_id?: string | null
+          follow_up_date?: string | null
+          notes?: string | null
           status: string | null
           user_id: string
         }
@@ -60,6 +64,10 @@ export type Database = {
           outcome?: string | null
           partial_skills?: string[] | null
           resume_version_id?: string | null
+          job_id?: string | null
+          resume_id?: string | null
+          follow_up_date?: string | null
+          notes?: string | null
           status?: string | null
           user_id: string
         }

@@ -40,9 +40,9 @@ export async function getResumeAnalytics(
   }
 
   // Fetch all resumes
-  const { data: resumes } = await supabase
-    .from("resumes")
-    .select("id, name, version_tag, created_at")
+  const { data: resumes } = await (supabase as any)
+    .from("resume_versions")
+    .select("id, version_label, version_number, created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -51,20 +51,19 @@ export async function getResumeAnalytics(
   }
 
   // Fetch all applications linked to resumes in date range
-  const { data: applications } = await supabase
+  const { data: applications } = await (supabase as any)
     .from("applications")
-    .select("id, resume_id, status, applied_at, updated_at")
+    .select("id, resume_version_id, status, applied_at, updated_at")
     .eq("user_id", user.id)
-    .gte("applied_at", dateFilter)
-    .not("resume_id", "is", null);
+    .gte("applied_at", dateFilter);
 
   if (!applications) return { success: true, data: [] };
 
-  const stats: ResumeStats[] = resumes.map((resume) => {
-    const apps = applications.filter((a) => a.resume_id === resume.id);
+  const stats: ResumeStats[] = (resumes as any[]).map((resume) => {
+    const apps = (applications as any[]).filter((a) => a.resume_version_id === resume.id);
     const total = apps.length;
     const interviews = apps.filter(
-      (a) => a.status === "interview" || a.status === "offer"
+      (a) => a.status === "interview" || a.status === "offer" || a.status === "interviewing"
     ).length;
     const offers = apps.filter((a) => a.status === "offer").length;
     const rejections = apps.filter((a) => a.status === "rejected").length;
@@ -74,14 +73,14 @@ export async function getResumeAnalytics(
 
     // Avg days to interview
     const interviewApps = apps.filter(
-      (a) => a.status === "interview" || a.status === "offer"
+      (a) => a.status === "interview" || a.status === "offer" || a.status === "interviewing"
     );
     let avg_days_to_interview: number | null = null;
     if (interviewApps.length > 0) {
       const totalDays = interviewApps.reduce((sum, a) => {
         if (!a.applied_at) return sum;
         const applied = new Date(a.applied_at).getTime();
-        const updated = new Date(a.updated_at).getTime();
+        const updated = a.updated_at ? new Date(a.updated_at).getTime() : applied;
         return sum + Math.round((updated - applied) / (1000 * 60 * 60 * 24));
       }, 0);
       avg_days_to_interview = Math.round(totalDays / interviewApps.length);
@@ -96,7 +95,7 @@ export async function getResumeAnalytics(
 
     return {
       resume_id: resume.id,
-      resume_name: resume.name || resume.version_tag || "Untitled Resume",
+      resume_name: resume.version_label || `Version ${resume.version_number}`,
       total_applications: total,
       interviews,
       offers,

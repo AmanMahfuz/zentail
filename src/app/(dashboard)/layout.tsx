@@ -23,16 +23,43 @@ export default async function DashboardRootLayout({
     .eq("id", user.id)
     .single();
 
-  if (!profile?.onboarding_completed) redirect("/onboarding");
+  let isOnboarded = profile?.onboarding_completed === true;
 
-  const initials = profile.full_name
-    ? profile.full_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
+  if (!isOnboarded) {
+    const { count: resumeCount } = await supabase
+      .from("resume_versions")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    if (resumeCount && resumeCount > 0) {
+      isOnboarded = true;
+      await (supabase.from("profiles") as any)
+        .upsert({ id: user.id, onboarding_completed: true, onboarding_completed_at: new Date().toISOString() }, { onConflict: "id" });
+    } else {
+      const { count: appCount } = await supabase
+        .from("applications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
+      if (appCount && appCount > 0) {
+        isOnboarded = true;
+        await (supabase.from("profiles") as any)
+          .upsert({ id: user.id, onboarding_completed: true, onboarding_completed_at: new Date().toISOString() }, { onConflict: "id" });
+      }
+    }
+  }
+
+  if (!isOnboarded) redirect("/onboarding");
+
+  const fullName = profile?.full_name || (user.user_metadata as any)?.full_name || user.email?.split("@")[0] || "User";
+  const initials = fullName
+    ? fullName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
     : "U";
 
   return (
     <LayoutWrapper
       initials={initials}
-      profile={profile}
+      profile={profile || { onboarding_completed: true, full_name: fullName }}
       user={user}
     >
       {children}

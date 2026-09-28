@@ -38,45 +38,29 @@ export async function matchJobDescription(
 
     if (resumeId) {
       // Fetch the resume from DB
-      const { data: resume } = await supabase
-        .from("resumes")
-        .select("file_path, file_url")
+      const { data: resume } = await (supabase as any)
+        .from("resume_versions")
+        .select("content, pdf_url")
         .eq("id", resumeId)
         .eq("user_id", user.id)
         .single();
 
-      if (resume) {
-        let pdfBuffer: Buffer | null = null;
-
-        if (resume.file_path) {
-          // Download directly from private storage
-          const { data: fileData, error } = await supabase.storage
-            .from("resumes")
-            .download(resume.file_path);
-          if (!error && fileData) {
-            const arrayBuffer = await fileData.arrayBuffer();
-            pdfBuffer = Buffer.from(arrayBuffer);
-          }
-        } else if (resume.file_url) {
-          // Fallback to public URL if no file_path
-          const res = await fetch(resume.file_url);
+      if (resume?.content) {
+        resumeText = JSON.stringify(resume.content, null, 2);
+      } else if (resume?.pdf_url) {
+        try {
+          const res = await fetch(resume.pdf_url);
           if (res.ok) {
             const arrayBuffer = await res.arrayBuffer();
-            pdfBuffer = Buffer.from(arrayBuffer);
-          }
-        }
-
-        if (pdfBuffer) {
-          try {
             const { text } = await extractText(
-              new Uint8Array(pdfBuffer),
+              new Uint8Array(arrayBuffer),
               { mergePages: true }
             );
             resumeText = text;
-          } catch (parseErr) {
-            console.error("PDF parse error:", parseErr);
-            resumeText = "(Could not extract resume text — PDF may be scanned or image-based)";
           }
+        } catch (parseErr) {
+          console.error("PDF parse error:", parseErr);
+          resumeText = "(Could not extract resume text — PDF may be scanned or image-based)";
         }
       }
     }

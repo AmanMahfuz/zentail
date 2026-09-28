@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { canonicalizeResumeData } from "@/lib/resume/map-resume-data";
 
 export async function POST(req: Request) {
   try {
@@ -10,48 +11,102 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { markdown, name } = await req.json();
+    const { markdown, name, data, resumeId } = await req.json();
 
-    if (!markdown) {
-      return NextResponse.json({ error: "Markdown is required" }, { status: 400 });
+    if (!markdown && !data) {
+      return NextResponse.json({ error: "Markdown or structured resume data is required" }, { status: 400 });
     }
 
-    // Convert markdown to a simple PDF string or just store markdown
-    // In a real app we'd generate a PDF buffer here with Puppeteer or react-pdf,
-    // upload to storage, and save the URL. For MVP we'll just save it to DB.
+    const canonicalContent = data ? canonicalizeResumeData(data) : { markdown };
 
-    // Let's create a text file as a mock PDF for now, or just save to DB.
-    const fileExt = "md";
-    const fileName = `${user.id}/${Date.now()}_builder.${fileExt}`;
+    let publicUrl: string | null = null;
+    try {
+      const fileExt = "md";
+      const fileName = `${user.id}/${Date.now()}_builder.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("resumes")
-      .upload(fileName, markdown, {
-        contentType: "text/markdown",
-        upsert: false,
-      });
+      const { error: uploadError } = await supabase.storage
+        .from("resumes")
+        .upload(fileName, markdown || JSON.stringify(canonicalContent, null, 2), {
+          contentType: "text/markdown",
+          upsert: true,
+        });
 
-    if (uploadError) {
-      console.error("Storage error:", uploadError);
-      return NextResponse.json({ error: "Storage error" }, { status: 500 });
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from("resumes").getPublicUrl(fileName);
+        publicUrl = urlData?.publicUrl || null;
+      }
+    } catch (err) {
+      console.warn("Storage upload notice in builder route:", err);
     }
 
-    const { data: urlData } = supabase.storage.from("resumes").getPublicUrl(fileName);
+    // In-place update of existing resume (prevents duplicate versions!)
+    if (resumeId) {
+      const updatePayload: any = {
+        content: canonicalContent,
+      };
+      if (name) updatePayload.version_label = name;
+      if (publicUrl) updatePayload.pdf_url = publicUrl;
+      if (data?.theme) updatePayload.theme = data.theme;
+      if (data?.theme?.template) updatePayload.template_id = data.theme.template;
 
-    const { error: dbError } = await supabase.from("resumes").insert({
+      const { data: updated, error: updateError } = await (supabase as any)
+        .from("resume_versions")
+        .update(updatePayload)
+        .eq("id", resumeId)
+        .eq("user_id", user.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error("DB Update Error:", updateError);
+        return NextResponse.json({ error: updateError.message || "Failed to update resume" }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, id: updated?.id || resumeId });
+    }
+
+    // Dynamic version calculation for newly created resume
+    const { data: existing } = await (supabase as any)
+      .from("resume_versions")
+      .select("version_number")
+      .eq("user_id", user.id)
+      .order("version_number", { ascending: false })
+      .limit(1);
+
+    const nextVer = (existing?.[0]?.version_number || 0) + 1;
+
+    await (supabase as any)
+      .from("resume_versions")
+      .update({ is_latest: false })
+      .eq("user_id", user.id);
+
+    const { data: inserted, error: dbError } = await (supabase as any).from("resume_versions").insert({
       user_id: user.id,
-      name: name || "Built Resume",
-      file_url: urlData.publicUrl,
-      file_path: fileName,
-      version_tag: "Builder",
-    });
+      version_number: nextVer,
+      version_label: name || `Built Resume V${nextVer}`,
+      pdf_url: publicUrl,
+      origin_type: "built",
+      template_id: data?.theme?.template || "original",
+      theme: data?.theme || null,
+      is_latest: true,
+      content: canonicalContent,
+    }).select().single();
 
     if (dbError) {
       console.error("DB Error:", dbError);
-      return NextResponse.json({ error: "DB Error" }, { status: 500 });
+      return NextResponse.json({ error: dbError.message || "DB Error" }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    // Ensure profile onboarding completed
+    await (supabase as any)
+      .from("profiles")
+      .upsert({
+        id: user.id,
+        onboarding_completed: true,
+        onboarding_completed_at: new Date().toISOString()
+      }, { onConflict: "id" });
+
+    return NextResponse.json({ success: true, id: inserted?.id });
   } catch (err: any) {
     console.error(err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

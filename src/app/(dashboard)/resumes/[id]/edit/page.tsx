@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ResumeBuilderClient from "../../builder/ResumeBuilderClient";
+import { mapToBuilderResumeData } from "@/lib/resume/map-resume-data";
 
 export default async function ResumeEditPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params;
@@ -15,11 +16,29 @@ export default async function ResumeEditPage({ params }: { params: Promise<{ id:
 
   const { data: resumeVersion } = await (supabase as any)
     .from("resume_versions")
-    .select("parsed_content")
+    .select("*")
     .eq("id", id)
-    .single();
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-  const initialData = resumeVersion?.parsed_content || undefined;
+  if (!resumeVersion) {
+    redirect("/resumes");
+  }
 
-  return <ResumeBuilderClient initialData={initialData} />;
+  const initialData = mapToBuilderResumeData({
+    versionContent: resumeVersion.content,
+    themeConfig: resumeVersion.theme || resumeVersion.content?.theme,
+    userMetadata: user.user_metadata,
+    userEmail: user.email,
+  });
+
+  return (
+    <ResumeBuilderClient
+      initialData={initialData}
+      hasExistingData={true}
+      versionLabel={resumeVersion.version_label}
+      resumeId={id}
+      readOnly={false}
+    />
+  );
 }

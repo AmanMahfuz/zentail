@@ -23,47 +23,40 @@ export async function POST(request: NextRequest) {
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `
-      You are an expert technical recruiter and career coach.
+      You have a resume (attached) and a job description.
       
-      I am providing a resume (as an attachment) and a job description.
-      
-      JOB DESCRIPTION:
+      Job Description:
       ${jd.slice(0, 4000)}
       
-      First, extract the resume data into a structured format (parsedResume).
-      Second, analyze the fit between the resume and the job description (analysis).
+      Tasks:
+      1. Parse the resume completely
+      2. Extract all requirements from the job description
+      3. Compare them and calculate fit honestly and specifically. Don't fabricate skills.
       
-      Be honest, strict, and very specific. Do not sugarcoat.
-      
-      Return ONLY a JSON object matching this structure:
+      Return ONLY a JSON object:
       {
         "parsedResume": {
-          "personal": {
-            "fullName": "string",
-            "email": "string"
-          },
-          "summary": "string",
+          "name": "string",
+          "email": "string",
+          "currentRole": "string",
+          "experience": "string",
           "skills": ["skill1", "skill2"],
-          "experience": [
-            {
-              "jobTitle": "string",
-              "company": "string",
-              "duration": "string",
-              "description": "string"
-            }
-          ]
+          "projects": [{"title": "string", "description": "string"}],
+          "education": "string"
         },
         "analysis": {
-          "fitScore": number (0-100),
-          "verdict": "A short, 1-2 sentence honest verdict on their chances.",
-          "matched": ["Short string (e.g., 'React (3 years)')", ...],
-          "partial": ["Short string (e.g., 'Node.js (No production exp)')", ...],
-          "missing": ["Short string (e.g., 'Docker')", ...],
-          "whatIsHoldingBack": "A clear, plain English explanation of the biggest gap or issue.",
+          "fitScore": 72,
+          "jobTitle": "string",
+          "company": "string",
+          "matched": ["React", "JavaScript"],
+          "partial": ["TypeScript"],
+          "missing": ["Docker", "AWS"],
+          "verdict": "Good match. A few gaps to address before applying.",
+          "whatIsHoldingBack": "Your resume doesn't demonstrate TypeScript depth despite listing it. The role emphasizes this heavily.",
           "improvements": [
-            "Specific improvement 1",
-            "Specific improvement 2",
-            "Specific improvement 3"
+            "Strengthen your TypeScript project descriptions with specific examples",
+            "Surface your API integration experience more prominently",
+            "Add a brief mention of any cloud or deployment experience"
           ]
         }
       }
@@ -74,17 +67,44 @@ export async function POST(request: NextRequest) {
       { inlineData: { mimeType: file.type || "application/pdf", data: base64 } }
     ]);
 
-    const text = result.response
-      .text()
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
+    const raw = result.response.text();
+
+    // Strip markdown fences and extract JSON
+    let text = raw
+      .replace(/```json\s*/gi, "")
+      .replace(/```\s*/g, "")
       .trim();
 
-    const data = JSON.parse(text);
+    // If Gemini prefixes with text, find the first { }
+    const jsonStart = text.indexOf("{");
+    const jsonEnd = text.lastIndexOf("}");
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      text = text.slice(jsonStart, jsonEnd + 1);
+    }
+
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      console.error("JSON parse failed. Raw response:", raw.slice(0, 500));
+      return NextResponse.json(
+        { error: "AI returned an unexpected format. Please try again." },
+        { status: 500 }
+      );
+    }
+
+    if (!data.parsedResume || !data.analysis) {
+      console.error("Missing fields. Keys:", Object.keys(data));
+      return NextResponse.json(
+        { error: "AI response was incomplete. Please try again." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      ...data
+      parsedResume: data.parsedResume,
+      analysis: data.analysis
     });
   } catch (error: any) {
     console.error("Full analysis error:", error);

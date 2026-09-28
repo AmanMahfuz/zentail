@@ -19,14 +19,17 @@ export function LayoutWrapper({
   user: any;
 }) {
   const pathname = usePathname();
-  const isBuilder =
+  const isFullScreen =
     pathname.includes("/builder") ||
     pathname.includes("/edit") ||
-    pathname.includes("/view");
+    pathname.includes("/view") ||
+    pathname.startsWith("/interviews/prepare") ||
+    pathname.startsWith("/interviews/simulator") ||
+    (pathname.includes("/interview") && pathname !== "/interviews" && !pathname.startsWith("/interviews?"));
 
-  if (isBuilder) {
+  if (isFullScreen) {
     return (
-      <main className="flex-1 h-[100dvh] overflow-hidden flex flex-col bg-zinc-50">
+      <main className="flex-1 min-h-[100dvh] flex flex-col bg-zinc-50">
         {children}
       </main>
     );

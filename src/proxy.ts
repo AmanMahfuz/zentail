@@ -54,7 +54,34 @@ export default async function proxy(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    const isOnboarded = profile?.onboarding_completed === true
+    let isOnboarded = profile?.onboarding_completed === true
+
+    // Self-healing: if not marked onboarded, check if user has existing resumes or applications
+    if (!isOnboarded) {
+      const { count: resumeCount } = await supabase
+        .from('resume_versions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+
+      if (resumeCount && resumeCount > 0) {
+        isOnboarded = true
+        await supabase
+          .from('profiles')
+          .upsert({ id: user.id, onboarding_completed: true, onboarding_completed_at: new Date().toISOString() }, { onConflict: 'id' })
+      } else {
+        const { count: appCount } = await supabase
+          .from('applications')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+
+        if (appCount && appCount > 0) {
+          isOnboarded = true
+          await supabase
+            .from('profiles')
+            .upsert({ id: user.id, onboarding_completed: true, onboarding_completed_at: new Date().toISOString() }, { onConflict: 'id' })
+        }
+      }
+    }
 
     const isAuthRoute = pathname.startsWith('/signin') || pathname.startsWith('/signup')
     const isDashboardRoute = pathname.startsWith('/dashboard') || pathname.startsWith('/applications')

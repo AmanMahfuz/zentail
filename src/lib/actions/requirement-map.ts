@@ -16,13 +16,13 @@ export async function generateRequirementMap(jobDescription: string) {
   }
 
   // Fetch user's evidence profile
-  const { data: skills } = await supabase
-    .from("user_skills")
+  const { data: skills } = await (supabase as any)
+    .from("evidence_skills")
     .select("*")
     .eq("user_id", user.id);
 
-  const { data: projects } = await supabase
-    .from("user_projects")
+  const { data: projects } = await (supabase as any)
+    .from("evidence_projects")
     .select("*")
     .eq("user_id", user.id);
 

@@ -1,12 +1,23 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateTailoredResume } from "@/lib/actions/phase3";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+export { generateTailoredResume };
+
+export async function tailorResumeForApplication(applicationId: string) {
+  const { ResumeAgent } = await import("@/lib/agents/resume-agent");
+  return await ResumeAgent.tailorForJob(applicationId);
+}
 
 export async function tailorResume(
   baseResume: any,
   jobDescription: string,
-  fitAnalysis: any
+  fitAnalysis: any = {}
 ) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is not configured");
+  }
+  const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   const prompt = `
@@ -17,13 +28,13 @@ export async function tailorResume(
     ${JSON.stringify(baseResume, null, 2)}
     
     JOB DESCRIPTION:
-    ${jobDescription.slice(0, 4000)}
+    ${(jobDescription || "").slice(0, 4000)}
     
     FIT ANALYSIS (Issues & Missing):
     ${JSON.stringify({ 
-      missing: fitAnalysis.missing, 
-      partial: fitAnalysis.partial, 
-      resumeIssues: fitAnalysis.resumeIssues 
+      missing: fitAnalysis?.missing || [], 
+      partial: fitAnalysis?.partial || [], 
+      resumeIssues: fitAnalysis?.resumeIssues || [] 
     })}
     
     YOUR TASK:
@@ -43,5 +54,10 @@ export async function tailorResume(
     .replace(/```\n?/g, "")
     .trim();
 
-  return JSON.parse(text);
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    console.error("Failed to parse tailored resume JSON:", text);
+    return baseResume;
+  }
 }

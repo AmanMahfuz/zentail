@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Briefcase, Video, FileText, User } from "lucide-react";
+import { LayoutDashboard, Briefcase, FileText, Video, Sparkles, Settings } from "lucide-react";
 
 const mobileNavItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Apps", href: "/applications", icon: Briefcase },
   { name: "Resumes", href: "/resumes", icon: FileText },
+  { name: "Interviews", href: "/interviews", icon: Video },
+  { name: "Skills", href: "/skills", icon: Sparkles },
+  { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 export function MobileNav() {

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 import { GoogleGenAI, Type } from "@google/genai";
-import { generateCoverLetter } from "./phase3";
+import { generateCoverLetter, generateQABank } from "./phase3";
 import { ResumeAgent } from "../agents/resume-agent";
 
 // --- Types ---
@@ -29,11 +29,12 @@ export async function updateApplicationStatus(
 
   const { error } = await (supabase
     .from("applications")
-    .update({ status: newStatus, updated_at: new Date().toISOString() } as any) as any)
+    .update({ status: newStatus } as any) as any)
     .eq("id", applicationId)
     .eq("user_id", user.id);
 
   if (error) {
+    console.error("updateApplicationStatus error:", error);
     return { success: false, message: "Could not update status." };
   }
 
@@ -159,6 +160,10 @@ export async function createApplication(
   const { data: appData, error: appError } = await supabase.from("applications").insert({
     user_id: user.id,
     job_id: jobId,
+    job_title: parsed.data.jobTitle,
+    company_name: parsed.data.company,
+    job_description: parsed.data.jobDescription || null,
+    job_link: parsed.data.jobUrl || null,
     resume_id: parsed.data.resumeId || null,
     status: parsed.data.initialStatus as ApplicationStatus,
     applied_at: parsed.data.applicationDate
@@ -175,12 +180,11 @@ export async function createApplication(
     return { success: false, message: "Could not create application." };
   }
 
-  // Fire and forget background AI tasks
-  // Note: in a true serverless environment (e.g. Vercel), this might be killed early.
-  // For standard Next.js node environments, this allows background processing.
+  // Fire and forget background AI tasks (Resume tailoring, Cover letter & Interview Q&A Bank)
   Promise.allSettled([
     ResumeAgent.tailorForJob(appData.id),
-    generateCoverLetter(appData.id)
+    generateCoverLetter(appData.id),
+    generateQABank(appData.id),
   ]).catch(console.error);
 
   revalidatePath("/applications");
@@ -260,12 +264,10 @@ export async function updateApplicationOutcome(
 
   if (!user) return { success: false, message: "Unauthorized" };
 
-  const { error } = await supabase
+  const { error } = await (supabase as any)
     .from("applications")
     .update({ 
-      outcome_status: data.outcome_status,
-      stage_reached: data.stage_reached,
-      feedback: data.feedback,
+      outcome: data.outcome_status,
       updated_at: new Date().toISOString() 
     })
     .eq("id", applicationId)
@@ -277,5 +279,52 @@ export async function updateApplicationOutcome(
 
   revalidatePath("/applications");
   revalidatePath("/dashboard");
+  return { success: true };
+}
+
+export async function updateApplicationNotes(id: string, notes: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+  
+  const { error } = await (supabase as any)
+    .from("applications")
+    .update({ notes })
+    .eq("id", id)
+    .eq("user_id", user.id);
+    
+  if (error) {
+    console.error("Error updating application notes:", error);
+    return { success: false, error: error.message };
+  }
+  
+  revalidatePath("/applications");
+  revalidatePath("/applications/[id]", "page");
+  return { success: true };
+}
+
+export async function updateApplicationChecklist(id: string, field: string, value: boolean) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+  
+  const updateData: any = {};
+  if (field === 'portfolio_verified') updateData.portfolio_verified = value;
+  if (field === 'intro_note_sent') updateData.intro_note_sent = value;
+  
+  if (Object.keys(updateData).length === 0) return { success: false, error: "Invalid field" };
+
+  const { error } = await (supabase as any)
+    .from("applications")
+    .update(updateData)
+    .eq("id", id)
+    .eq("user_id", user.id);
+    
+  if (error) {
+    console.error("Error updating application checklist:", error);
+    return { success: false, error: error.message };
+  }
+  
+  revalidatePath("/applications/[id]", "page");
   return { success: true };
 }

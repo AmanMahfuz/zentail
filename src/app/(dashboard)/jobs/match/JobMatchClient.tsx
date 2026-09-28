@@ -5,9 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CheckCircle2, XCircle, AlertCircle, Bot, Loader2, ShieldAlert, AlertTriangle } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, Bot, Loader2, ShieldAlert, AlertTriangle, Sparkles } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { matchJobDescription, JobMatchResult } from "@/lib/actions/ai-matching";
+import { RecommendationCard } from "@/components/jobs/RecommendationCard";
+import { QABankModal } from "@/components/jobs/QABankModal";
+import { JobPostingInputModal } from "@/components/jobs/JobPostingInputModal";
+import { ResumeRecommendation, QABank, MatchAndPrepResult } from "@/types/resume-matching";
 
 type Resume = { id: string; version_tag: string | null };
 type Job = { id: string; title: string; company: string; description: string | null };
@@ -23,6 +27,12 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<JobMatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Automated Match & Q&A state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [recommendation, setRecommendation] = useState<ResumeRecommendation | null>(null);
+  const [qaBank, setQaBank] = useState<QABank | null>(null);
+  const [isQAModalOpen, setIsQAModalOpen] = useState(false);
 
   const handleResumeSelect = (val: string | null) => {
     setResumeId(val === "none" || !val ? "" : val);
@@ -67,13 +77,67 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
     setIsProcessing(false);
   };
 
+  const handleAutomatedMatch = async () => {
+    if (!jobDescription.trim()) {
+      setError("Please provide a job description for automated matching.");
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+
+    const selectedJob = initialJobs.find(j => j.id === selectedJobId);
+
+    try {
+      const res = await fetch("/api/jobs/match-and-prep", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: selectedJob?.title || "Software Engineer",
+          company: selectedJob?.company || "Target Company",
+          description: jobDescription.trim(),
+          targetResumeId: resumeId || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to generate match & Q&A");
+      }
+
+      setRecommendation(data.recommendation);
+      setQaBank(data.qaBank);
+      setResult(null); // Switch to rich recommendation view
+    } catch (err: any) {
+      setError(err.message || "Automated match failed");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleModalComplete = (data: MatchAndPrepResult) => {
+    if (data.recommendation) setRecommendation(data.recommendation);
+    if (data.qaBank) setQaBank(data.qaBank);
+    setResult(null);
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto" style={{ display: "flex", flexDirection: "row", gap: "2rem", alignItems: "flex-start" }}>
       {/* Input Section */}
       <div style={{ flex: "1 1 0", minWidth: 0 }} className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">AI Job Matcher</h1>
-          <p className="text-slate-500">Compare your resume against any tracked job or paste a new description.</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 mb-1">AI Job Matcher & Prep</h1>
+            <p className="text-slate-500 text-sm">Compare your resume against any job and auto-generate 15 tailored interview Q&As.</p>
+          </div>
+          <Button 
+            onClick={() => setIsModalOpen(true)}
+            variant="outline"
+            className="rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50 text-xs font-semibold self-start sm:self-auto shrink-0 shadow-xs"
+          >
+            <Sparkles className="w-3.5 h-3.5 mr-1.5 text-indigo-600" />
+            Quick Job Input Modal
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -144,23 +208,42 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
 
         {error && <div className="text-red-500 text-sm bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
 
-        <Button 
-          onClick={handleMatch} 
-          disabled={isProcessing || !jobDescription.trim()} 
-          className="w-full text-white h-12 text-base rounded-xl font-semibold shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5"
-          style={{ backgroundColor: "var(--color-sunset-orange)" }}
-        >
-          {isProcessing ? (
-            <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Analyzing Match...</>
-          ) : (
-            <><Bot className="w-5 h-5 mr-2" /> Calculate Match Score</>
-          )}
-        </Button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <Button 
+            onClick={handleAutomatedMatch} 
+            disabled={isProcessing || !jobDescription.trim()} 
+            className="w-full text-white h-12 text-sm rounded-xl font-semibold shadow-md bg-indigo-600 hover:bg-indigo-700 transition-all hover:shadow-lg hover:-translate-y-0.5"
+          >
+            {isProcessing ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing Match & Q&A...</>
+            ) : (
+              <><Sparkles className="w-4 h-4 mr-2 text-amber-300" /> Auto-Match & Prep 15 Q&As</>
+            )}
+          </Button>
+
+          <Button 
+            onClick={handleMatch} 
+            disabled={isProcessing || !jobDescription.trim()} 
+            variant="outline"
+            className="w-full h-12 text-sm rounded-xl font-semibold border-slate-300 hover:bg-slate-50 transition-all"
+          >
+            <Bot className="w-4 h-4 mr-2 text-slate-600" />
+            Quick Match Only
+          </Button>
+        </div>
       </div>
 
       {/* Results Section */}
       <div style={{ flex: "1 1 0", minWidth: 0 }}>
-        {result ? (
+        {recommendation ? (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <RecommendationCard 
+              recommendation={recommendation} 
+              qaBank={qaBank || undefined}
+              onOpenQABank={() => setIsQAModalOpen(true)}
+            />
+          </div>
+        ) : result ? (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <Card className="rounded-2xl border-slate-200 shadow-sm overflow-hidden relative bg-white">
               <div className="p-8 text-center relative z-10 flex flex-col items-center justify-center">
@@ -291,16 +374,33 @@ export default function JobMatchClient({ initialResumes, initialJobs }: { initia
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-dashed border-slate-300 shadow-inner min-h-[500px]">
-            <div className="bg-blue-50 p-4 rounded-full mb-6">
-              <Bot className="w-12 h-12 text-blue-500 animate-pulse" />
+            <div className="bg-indigo-50 p-4 rounded-full mb-6">
+              <Bot className="w-12 h-12 text-indigo-500 animate-pulse" />
             </div>
             <h3 className="text-2xl font-bold text-slate-900">Awaiting Job Selection</h3>
-            <p className="text-slate-500 mt-3 max-w-sm leading-relaxed">
-              Select a job from your pipeline or paste a new description. Our AI will analyze your fit and suggest tailored improvements.
+            <p className="text-slate-500 mt-3 max-w-sm leading-relaxed text-sm">
+              Select a job from your pipeline, paste a new description, or click <strong>Quick Job Input Modal</strong>.
+              Our AI engine will score your fit, recommend the top resume, and synthesize 15 tailored interview Q&As.
             </p>
           </div>
         )}
       </div>
+
+      {/* Modals */}
+      <JobPostingInputModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        resumes={initialResumes}
+        onComplete={handleModalComplete}
+      />
+
+      {qaBank && (
+        <QABankModal
+          qaBank={qaBank}
+          isOpen={isQAModalOpen}
+          onClose={() => setIsQAModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -162,13 +162,13 @@ export function ApplicationDetailsSheet({ app, isOpen, onOpenChange }: Applicati
               <Sparkles className="w-4 h-4" /> Smart Generation
             </Label>
             <div className="flex flex-col gap-2">
-              <Link href={`/applications/${app.id}/builder`} className="w-full">
+              <Link href={`/applications/${app.id}/resume`} className="w-full">
                 <Button 
                   variant="outline" 
                   className="w-full justify-start border-emerald-200 hover:bg-emerald-100 hover:text-emerald-900 bg-white"
                 >
                   <Sparkles className="w-4 h-4 mr-2" />
-                  Open Interactive Resume Builder
+                  Open Resume Center
                 </Button>
               </Link>
               <Button 

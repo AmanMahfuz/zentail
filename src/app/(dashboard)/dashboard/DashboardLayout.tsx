@@ -27,17 +27,23 @@ type Props = {
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, { bg: string; text: string }> = {
-    saved: { bg: "#f1f5f9", text: "#475569" },
-    applied: { bg: "#dbeafe", text: "#1e40af" },
-    interview: { bg: "#fef08a", text: "#854d0e" },
-    offer: { bg: "#dcfce7", text: "#166534" },
-    rejected: { bg: "#fee2e2", text: "#991b1b" }
+  const styles: Record<string, { bg: string; text: string; label: string }> = {
+    saved: { bg: "#f1f5f9", text: "#475569", label: "Saved" },
+    review_needed: { bg: "#fef3c7", text: "#92400e", label: "Review Needed" },
+    applied: { bg: "#dbeafe", text: "#1e40af", label: "Applied" },
+    assessment: { bg: "#f3e8ff", text: "#6b21a8", label: "Assessment" },
+    interview: { bg: "#fef08a", text: "#854d0e", label: "Interview" },
+    offer: { bg: "#dcfce7", text: "#166534", label: "Offer" },
+    rejected: { bg: "#fee2e2", text: "#991b1b", label: "Rejected" }
   };
-  const s = styles[status] || styles.saved;
+  const s = styles[status] || {
+    bg: "#f1f5f9",
+    text: "#475569",
+    label: (status || "Unknown").replace(/_/g, " ")
+  };
   return (
-    <span className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider" style={{ backgroundColor: s.bg, color: s.text }}>
-      {status}
+    <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider shrink-0 whitespace-nowrap" style={{ backgroundColor: s.bg, color: s.text }}>
+      {s.label}
     </span>
   );
 }
@@ -91,7 +97,7 @@ export default function DashboardLayoutClient({
               style={{ backgroundColor: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" }}
             >
               <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-              {countsByStatus.saved + countsByStatus.applied + countsByStatus.assessment + countsByStatus.interview} in progress
+              {(countsByStatus.saved || 0) + (countsByStatus.review_needed || 0) + (countsByStatus.applied || 0) + (countsByStatus.assessment || 0) + (countsByStatus.interview || 0)} in progress
             </span>
             <span 
               className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5"
@@ -168,18 +174,33 @@ export default function DashboardLayoutClient({
             </div>
           ) : (
             <div className="divide-y" style={{ borderColor: "var(--color-ash-border)" }}>
-              {recentApplications.map((app: any) => (
-                <div key={app.id} className="px-5 py-3 flex items-center gap-3 hover:bg-[var(--color-cloud-mist)] transition-colors">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold" style={{ backgroundColor: "var(--color-sunset-whisper)", color: "var(--color-sunset-orange)" }}>
-                    {(app.job?.company ?? "?")[0].toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate" style={{ color: "var(--color-graphite-heading)" }}>{app.job?.title ?? "Unknown Role"}</p>
-                    <p className="text-xs truncate" style={{ color: "var(--color-slate-body)" }}>{app.job?.company ?? "Unknown Company"} · {formatDistanceToNow(new Date(app.created_at), { addSuffix: true })}</p>
-                  </div>
-                  <StatusBadge status={app.status} />
-                </div>
-              ))}
+              {recentApplications.map((app: any) => {
+                const company = app.company_name || app.job?.company || "Target Company";
+                const title = app.job_title || app.job?.title || "Target Role";
+                return (
+                  <Link
+                    key={app.id}
+                    href={`/applications/${app.id}`}
+                    className="px-5 py-3 flex items-center gap-3 hover:bg-[var(--color-cloud-mist)] transition-colors cursor-pointer"
+                  >
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold"
+                      style={{ backgroundColor: "var(--color-sunset-whisper)", color: "var(--color-sunset-orange)" }}
+                    >
+                      {(company.trim() || "?")[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate" style={{ color: "var(--color-graphite-heading)" }}>
+                        {title}
+                      </p>
+                      <p className="text-xs truncate" style={{ color: "var(--color-slate-body)" }}>
+                        {company} · {app.created_at ? formatDistanceToNow(new Date(app.created_at), { addSuffix: true }) : ""}
+                      </p>
+                    </div>
+                    <StatusBadge status={app.status} />
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>
@@ -198,10 +219,10 @@ export default function DashboardLayoutClient({
             {nextInterview ? (
               <>
                 <p className="font-semibold text-sm" style={{ color: "var(--color-graphite-heading)" }}>
-                  {(nextInterview.application as any)?.job?.company ?? "Unknown"}
+                  {(nextInterview.application as any)?.company_name ?? (nextInterview.application as any)?.job?.company ?? "Unknown Company"}
                 </p>
                 <p className="text-xs mt-0.5" style={{ color: "var(--color-slate-body)" }}>
-                  {(nextInterview.application as any)?.job?.title ?? "Unknown Role"}
+                  {(nextInterview.application as any)?.job_title ?? (nextInterview.application as any)?.job?.title ?? "Unknown Role"}
                 </p>
                 <Countdown scheduledAt={nextInterview.scheduled_at} />
                 <Link
@@ -271,18 +292,26 @@ export default function DashboardLayoutClient({
           ) : (
             <div className="divide-y" style={{ borderColor: "var(--color-ash-border)" }}>
               {followUps.map((app: any) => {
-                const daysAgo = Math.floor((Date.now() - new Date(app.updated_at).getTime()) / 86400000);
+                const daysAgo = app.updated_at || app.created_at
+                  ? Math.floor((Date.now() - new Date(app.updated_at || app.created_at).getTime()) / 86400000)
+                  : 0;
+                const title = app.job_title || app.job?.title || "Target Role";
+                const company = app.company_name || app.job?.company || "Target Company";
                 return (
-                  <div key={app.id} className="px-5 py-3 flex items-center justify-between">
+                  <Link
+                    key={app.id}
+                    href={`/applications/${app.id}`}
+                    className="px-5 py-3 flex items-center justify-between hover:bg-[var(--color-cloud-mist)] transition-colors"
+                  >
                     <div>
-                      <p className="text-sm font-semibold" style={{ color: "var(--color-graphite-heading)" }}>{app.job?.title}</p>
-                      <p className="text-xs" style={{ color: "var(--color-slate-body)" }}>{app.job?.company}</p>
+                      <p className="text-sm font-semibold" style={{ color: "var(--color-graphite-heading)" }}>{title}</p>
+                      <p className="text-xs" style={{ color: "var(--color-slate-body)" }}>{company}</p>
                     </div>
                     <div className="text-right">
                       <StatusBadge status={app.status} />
                       <p className="text-[10px] mt-1" style={{ color: "var(--color-fog-text)" }}>{daysAgo}d no update</p>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>

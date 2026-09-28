@@ -3,9 +3,20 @@
 import { useState } from "react";
 import { Sparkles, MessageSquare, Layers, CheckSquare } from "lucide-react";
 import { AITopicsTab } from "./AITopicsTab";
+import { ApplicationSimulationArena } from "./ApplicationSimulationArena";
 import { Badge } from "@/components/ui/badge";
 
-export function InterviewDashboardTabs() {
+export function InterviewDashboardTabs({
+  applicationId = "",
+  initialPrep,
+  jobTitle = "Software Engineer",
+  company = "Company"
+}: {
+  applicationId?: string;
+  initialPrep?: any;
+  jobTitle?: string;
+  company?: string;
+}) {
   const [activeTab, setActiveTab] = useState("topics");
 
   return (
@@ -21,7 +32,7 @@ export function InterviewDashboardTabs() {
           }`}
         >
           <Sparkles className="w-4 h-4" />
-          AI Topics
+          AI Topics & Questions
           {activeTab === "topics" && <div className="w-1.5 h-1.5 rounded-full bg-white ml-1"></div>}
         </button>
 
@@ -34,7 +45,10 @@ export function InterviewDashboardTabs() {
           }`}
         >
           <MessageSquare className="w-4 h-4" />
-          Q&A Practice
+          Interactive Simulation
+          <Badge className="ml-1 bg-amber-100 text-amber-800 hover:bg-amber-100 border-none px-1.5 py-0 text-[10px] font-bold">
+            Live AI
+          </Badge>
         </button>
 
         <button
@@ -70,12 +84,19 @@ export function InterviewDashboardTabs() {
 
       {/* Tab Content */}
       <div className="bg-white rounded-xl p-6 md:p-8 shadow-sm border border-slate-200">
-        {activeTab === "topics" && <AITopicsTab />}
-        
-        {/* Placeholders for other tabs */}
-        {activeTab === "qa" && (
-          <div className="py-12 text-center text-slate-500">Q&A Practice functionality coming soon.</div>
+        {activeTab === "topics" && (
+          <AITopicsTab applicationId={applicationId} initialPrep={initialPrep} />
         )}
+        
+        {activeTab === "qa" && (
+          <ApplicationSimulationArena
+            applicationId={applicationId}
+            jobTitle={jobTitle}
+            company={company}
+            initialQuestions={initialPrep?.mock_questions}
+          />
+        )}
+
         {activeTab === "flashcards" && (
           <div className="py-12 text-center text-slate-500">Flashcards functionality coming soon.</div>
         )}

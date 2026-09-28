@@ -14,10 +14,12 @@ export function InterviewDashboardClient({
   jobTitle,
   company,
   applicationId,
+  initialPrep,
 }: {
   jobTitle: string;
   company: string;
   applicationId: string;
+  initialPrep?: any;
 }) {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -49,7 +51,12 @@ export function InterviewDashboardClient({
         {/* Left Column (Main Content) - 70% */}
         <div className="lg:col-span-8 space-y-6">
           <InterviewHero jobTitle={jobTitle} company={company} />
-          <InterviewDashboardTabs />
+          <InterviewDashboardTabs 
+            applicationId={applicationId} 
+            initialPrep={initialPrep} 
+            jobTitle={jobTitle}
+            company={company}
+          />
         </div>
 
         {/* Right Column (Sidebar) - 30% */}

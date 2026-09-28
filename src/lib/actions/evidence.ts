@@ -9,8 +9,8 @@ export async function getUserSkills() {
 
   if (!user) return [];
 
-  const { data, error } = await supabase
-    .from("user_skills")
+  const { data, error } = await (supabase as any)
+    .from("evidence_skills")
     .select("*")
     .eq("user_id", user.id)
     .order("skill_name");
@@ -29,14 +29,13 @@ export async function addUserSkill(skillName: string, proofStatus: string = 'sel
 
   if (!user) return { success: false, message: "Unauthorized" };
 
-  const { error } = await supabase
-    .from("user_skills")
+  const { error } = await (supabase as any)
+    .from("evidence_skills")
     .insert({
       user_id: user.id,
       skill_name: skillName,
       proof_status: proofStatus,
       proof_description: proofDescription,
-      proof_links: []
     });
 
   if (error) {
@@ -53,8 +52,8 @@ export async function updateUserSkill(id: string, updates: any) {
 
   if (!user) return { success: false, message: "Unauthorized" };
 
-  const { error } = await supabase
-    .from("user_skills")
+  const { error } = await (supabase as any)
+    .from("evidence_skills")
     .update(updates)
     .eq("id", id)
     .eq("user_id", user.id);
@@ -71,8 +70,8 @@ export async function deleteUserSkill(id: string) {
 
   if (!user) return { success: false, message: "Unauthorized" };
 
-  const { error } = await supabase
-    .from("user_skills")
+  const { error } = await (supabase as any)
+    .from("evidence_skills")
     .delete()
     .eq("id", id)
     .eq("user_id", user.id);
@@ -89,8 +88,8 @@ export async function getUserProjects() {
 
   if (!user) return [];
 
-  const { data, error } = await supabase
-    .from("user_projects")
+  const { data, error } = await (supabase as any)
+    .from("evidence_projects")
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
@@ -109,15 +108,15 @@ export async function addUserProject(title: string, description: string, githubU
 
   if (!user) return { success: false, message: "Unauthorized" };
 
-  const { error } = await supabase
-    .from("user_projects")
+  const { error } = await (supabase as any)
+    .from("evidence_projects")
     .insert({
       user_id: user.id,
       title,
       description,
       github_url: githubUrl || null,
-      live_url: liveUrl || null,
-      skills_demonstrated: skills
+      url: liveUrl || null,
+      tech_stack: skills
     });
 
   if (error) {
@@ -134,8 +133,8 @@ export async function deleteUserProject(id: string) {
 
   if (!user) return { success: false, message: "Unauthorized" };
 
-  const { error } = await supabase
-    .from("user_projects")
+  const { error } = await (supabase as any)
+    .from("evidence_projects")
     .delete()
     .eq("id", id)
     .eq("user_id", user.id);

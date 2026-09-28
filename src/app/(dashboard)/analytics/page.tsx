@@ -30,8 +30,8 @@ export default async function AnalyticsPage() {
 
   // Funnel counts
   const funnel = {
-    applied:   allApps.filter(a => ["applied","assessment","interview","offer","rejected"].includes(a.status)).length,
-    interview: allApps.filter(a => ["interview","offer"].includes(a.status)).length,
+    applied:   allApps.filter(a => a.status && ["applied","assessment","interview","offer","rejected"].includes(a.status)).length,
+    interview: allApps.filter(a => a.status && ["interview","offer"].includes(a.status)).length,
     offer:     allApps.filter(a => a.status === "offer").length,
   };
 
@@ -40,10 +40,11 @@ export default async function AnalyticsPage() {
   const statusRank: Record<string, number> = { saved: 0, applied: 1, assessment: 2, interview: 3, offer: 4, rejected: 0 };
   for (const app of allApps) {
     const co = (app.job as any)?.company ?? "Unknown";
-    if (!companyMap[co]) companyMap[co] = { count: 0, bestStatus: app.status };
+    const appStatus = app.status || "saved";
+    if (!companyMap[co]) companyMap[co] = { count: 0, bestStatus: appStatus };
     companyMap[co].count++;
-    if ((statusRank[app.status] ?? 0) > (statusRank[companyMap[co].bestStatus] ?? 0))
-      companyMap[co].bestStatus = app.status;
+    if ((statusRank[appStatus] ?? 0) > (statusRank[companyMap[co].bestStatus] ?? 0))
+      companyMap[co].bestStatus = appStatus;
   }
   const topCompanies = Object.entries(companyMap)
     .sort((a, b) => b[1].count - a[1].count)

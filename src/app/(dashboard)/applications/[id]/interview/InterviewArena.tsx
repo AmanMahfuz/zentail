@@ -110,7 +110,7 @@ export function InterviewArena() {
               />
             ) : mode === "voice" ? (
               <VoiceMode 
-                questionText={currentQ.question}
+                questionText={currentQ.question || currentQ.text || ""}
                 onSubmit={handleSubmit}
                 isLoading={isLoading}
               />

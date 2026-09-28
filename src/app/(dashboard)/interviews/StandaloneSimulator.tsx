@@ -1,32 +1,24 @@
 "use client";
 
 import { useInterviewStore } from "@/store/useInterviewStore";
-import { StandaloneConfigurator } from "./StandaloneConfigurator";
-import { InterviewArena } from "../applications/[id]/interview/InterviewArena";
-import { FinalReport } from "../applications/[id]/interview/FinalReport";
+import InterviewConfigurator from "@/components/interview/InterviewConfigurator";
+import InterviewArena from "@/components/interview/InterviewArena";
+import SessionReview from "@/components/interview/SessionReview";
 import { useEffect } from "react";
 
 export function StandaloneSimulator() {
-  const { phase, reset } = useInterviewStore();
+  const { currentState, reset } = useInterviewStore();
 
   useEffect(() => {
-    // Reset when mounting standalone to clear out any application-specific state
+    // Reset to start clean when entering standalone simulator
     reset();
   }, [reset]);
 
   return (
     <div className="w-full">
-      {phase === "configurator" && (
-        <StandaloneConfigurator />
-      )}
-      
-      {(phase === "active" || phase === "feedback") && (
-        <InterviewArena />
-      )}
-      
-      {phase === "completed" && (
-        <FinalReport />
-      )}
+      {currentState === "config" && <InterviewConfigurator />}
+      {currentState === "practicing" && <InterviewArena />}
+      {currentState === "review" && <SessionReview />}
     </div>
   );
 }

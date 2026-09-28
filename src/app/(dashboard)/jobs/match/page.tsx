@@ -10,19 +10,24 @@ export default async function JobMatchPage() {
     redirect("/signin");
   }
 
-  // Fetch resumes
-  const { data: resumes } = await supabase
-    .from("resumes")
-    .select("id, version_tag")
+  // Fetch resumes from resume_versions
+  const { data: resumesRaw } = await (supabase as any)
+    .from("resume_versions")
+    .select("id, version_label, version_number")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
+  const resumes = (resumesRaw || []).map((r: any) => ({
+    id: r.id,
+    version_tag: r.version_label || `V${r.version_number}`,
+  }));
+
   // Fetch jobs (from applications and standalone jobs)
-  const { data: jobs } = await supabase
+  const { data: jobs } = await (supabase as any)
     .from("jobs")
     .select("id, title, company, description")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
-  return <JobMatchClient initialResumes={resumes || []} initialJobs={jobs || []} />;
+  return <JobMatchClient initialResumes={resumes} initialJobs={jobs || []} />;
 }

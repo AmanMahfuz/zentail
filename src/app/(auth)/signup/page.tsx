@@ -86,9 +86,22 @@ function SignUpForm() {
         </div>
 
         {searchParams.get("from") === "onboarding" && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5 mb-5 text-sm text-blue-700">
-            <span className="font-semibold mr-1">✓ Your analysis is ready.</span>
-            Create a free account to save it and see the full requirements map.
+          <div
+            style={{
+              background: "var(--bg-accent, #eff6ff)",
+              border: "1px solid var(--border-accent, #bfdbfe)",
+              borderRadius: 12,
+              padding: "12px 16px",
+              marginBottom: 20,
+              fontSize: 14
+            }}
+          >
+            <span style={{ fontWeight: 600, color: "var(--text-accent, #2563eb)" }}>
+              Your analysis is ready.
+            </span>
+            <span style={{ color: "var(--text-secondary, #52525b)" }}>
+              {" "}Create a free account to save it and build your application.
+            </span>
           </div>
         )}
 

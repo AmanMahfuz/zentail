@@ -8,18 +8,34 @@ import { Button } from "@/components/ui/button";
 import { ChevronRight, Download, Send, Zap, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { exportResumeToDocx } from "@/lib/utils/export-docx";
+import { ResumeDownloadButton } from "@/components/resumes/ResumeDownloadButton";
 
-export function ResumeBuilderClient({ application, activeResume, history }: { application: any, activeResume: any, history: any[] }) {
+export function ResumeBuilderClient({
+  application,
+  recommendation,
+  activeResume,
+  history,
+}: {
+  application: any;
+  recommendation?: any;
+  activeResume: any;
+  history: any[];
+}) {
   const [zoom, setZoom] = useState(100);
   const [isExporting, setIsExporting] = useState(false);
 
-  const job = application.job || {};
+  const job = application.job || {
+    company: application.company_name,
+    title: application.job_title,
+    description: application.job_description,
+  };
 
   const handleExportDocx = async () => {
-    if (!activeResume?.content?.resume_markdown) return;
+    const md = activeResume?.content?.resume_markdown || activeResume?.resume_markdown;
+    if (!md) return;
     setIsExporting(true);
     try {
-      await exportResumeToDocx(activeResume.content.resume_markdown, `resume-${job.company || "zentail"}.docx`);
+      await exportResumeToDocx(md, `resume-${job.company || "zentail"}.docx`);
     } catch (err) {
       console.error(err);
       alert("Failed to export DOCX.");
@@ -52,6 +68,15 @@ export function ResumeBuilderClient({ application, activeResume, history }: { ap
         </div>
 
         <div className="flex items-center gap-3">
+          {activeResume?.id && (
+            <ResumeDownloadButton
+              resumeId={activeResume.id}
+              resumeTitle={`${job.company || 'Resume'}_${job.title || 'Role'}`}
+              variant="outline"
+              size="md"
+              className="text-slate-700 border-slate-200"
+            />
+          )}
           <Button 
             variant="outline" 
             className="text-slate-600 border-slate-200 hover:bg-slate-50"
@@ -75,7 +100,12 @@ export function ResumeBuilderClient({ application, activeResume, history }: { ap
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar */}
         <aside className="w-80 shrink-0 bg-slate-50 border-r border-slate-200 overflow-y-auto">
-          <DocumentBuilderSidebar history={history} />
+          <DocumentBuilderSidebar
+            history={history}
+            application={application}
+            activeResume={activeResume}
+            recommendation={recommendation}
+          />
         </aside>
 
         {/* Center Canvas */}
@@ -102,7 +132,12 @@ export function ResumeBuilderClient({ application, activeResume, history }: { ap
 
         {/* Right Sidebar */}
         <aside className="w-80 shrink-0 bg-white border-l border-slate-200 overflow-y-auto">
-          <IntelligenceSidebar job={job} activeResume={activeResume} />
+          <IntelligenceSidebar
+            job={job}
+            activeResume={activeResume}
+            application={application}
+            recommendation={recommendation}
+          />
         </aside>
       </div>
 

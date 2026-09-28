@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import DashboardLayoutClient from "./DashboardLayout";
-import { HeroAction } from "@/components/dashboard/HeroAction";
-import { PipelineSummary } from "@/components/dashboard/PipelineSummary";
+import { DashboardClient } from "./DashboardClient";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -14,133 +12,17 @@ export default async function DashboardPage() {
     .from("profiles")
     .select("full_name, primary_target_role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  // Applications by status
-  const { data: applications } = await supabase
-    .from("applications")
-    .select("id, status, created_at, updated_at, job:jobs(title, company)")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
-
-  const countsByStatus: Record<string, number> = {
-    saved: 0, applied: 0, assessment: 0, interview: 0, offer: 0, rejected: 0,
-  };
-  for (const app of applications ?? []) {
-    countsByStatus[app.status] = (countsByStatus[app.status] ?? 0) + 1;
-  }
-
-  // Recent 5 applications
-  const recentApplications = (applications ?? []).slice(0, 5);
-
-  // This week count
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const applicationsThisWeek = (applications ?? []).filter(
-    a => new Date(a.created_at) >= sevenDaysAgo
-  ).length;
-
-  // Upcoming interviews
-  const { data: interviews } = await supabase
-    .from("interviews")
-    .select(`
-      id, scheduled_at, interview_type, round,
-      application:applications!inner(id, user_id,
-        job:jobs(company, title)
-      )
-    `)
-    .eq("application.user_id", user.id)
-    .gte("scheduled_at", new Date().toISOString())
-    .order("scheduled_at", { ascending: true })
-    .limit(3);
-
-  // Needs follow-up
-  const { data: followUps } = await supabase
-    .from("applications")
-    .select("id, updated_at, status, job:jobs(company, title)")
-    .eq("user_id", user.id)
-    .in("status", ["interview", "offer"])
-    .lt("updated_at", sevenDaysAgo.toISOString())
-    .limit(3);
-
-  // Skills coverage
-  const { data: skillGaps } = await supabase
-    .from("skill_gaps")
-    .select("skill_name, required_in_count, user_has_it, priority")
-    .eq("user_id", user.id)
-    .order("priority", { ascending: false });
-
-  const { data: jobMatches } = await supabase
-    .from("job_matches")
-    .select("matched_skills, missing_skills")
-    .eq("user_id", user.id);
-
-  const matchedSet = new Set<string>();
-  const missingSet = new Set<string>();
-  for (const m of jobMatches ?? []) {
-    if (Array.isArray(m.matched_skills)) (m.matched_skills as string[]).forEach(s => matchedSet.add(s));
-    if (Array.isArray(m.missing_skills)) (m.missing_skills as string[]).forEach(s => missingSet.add(s));
-  }
-  const totalUnique = matchedSet.size + missingSet.size;
-  const coveragePercent = totalUnique > 0 ? Math.round((matchedSet.size / totalUnique) * 100) : 0;
-  const topMissing = (skillGaps ?? []).filter(g => !g.user_has_it).slice(0, 2);
-
-  // Active learning path
-  const { data: activePath } = await supabase
-    .from("learning_paths")
-    .select(`
-      id, progress_percentage, status,
-      skill:skill_gaps(skill_name)
-    `)
-    .eq("user_id", user.id)
-    .not("status", "eq", "completed")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
-
-  const firstName = profile?.full_name?.split(" ")[0] || "there";
-  const isFirstTime = !applications || applications.length === 0;
-
-  // Mock data for the new AI components
-  const mockApplications = (applications || []).map(app => ({
-    ...app,
-    company_name: (app as any).job?.company || "Unknown Company",
-    job_title: (app as any).job?.title || "Unknown Role",
-    fit_score: 85,
-    requirement_maps: { missing_count: 2 }
-  }));
-
-  const needsReview = mockApplications.filter(a => a.status === "saved") || [];
-  const analyzing = mockApplications.filter(a => (a.status as string) === "analyzing") || [];
-  const upcomingInterviewsNew = mockApplications.filter(a => ["interview", "assessment"].includes(a.status)) || [];
+  const firstName = profile?.full_name?.split(" ")[0] || user.email?.split("@")[0] || "there";
+  const userName = profile?.full_name ?? user.email?.split("@")[0] ?? "";
+  const targetRole = profile?.primary_target_role ?? "";
 
   return (
-    <div className="p-8 overflow-y-auto h-full">
-      <DashboardLayoutClient
-        userName={profile?.full_name ?? user.email?.split("@")[0] ?? ""}
-        targetRole={profile?.primary_target_role ?? ""}
-        countsByStatus={countsByStatus}
-        upcomingInterviews={interviews ?? []}
-        followUps={followUps ?? []}
-        recentApplications={recentApplications}
-        applicationsThisWeek={applicationsThisWeek}
-        coveragePercent={coveragePercent}
-        totalUnique={totalUnique}
-        matchedCount={matchedSet.size}
-        topMissing={topMissing}
-        activeLearningPath={activePath ?? null}
-      >
-        <PipelineSummary applications={applications ?? []} weeklyStats={{ new_this_week: applicationsThisWeek }} />
-        {!isFirstTime && (
-          <HeroAction
-            firstName={firstName}
-            isFirstTime={isFirstTime}
-            needsReview={needsReview as any}
-            analyzing={analyzing as any}
-            upcomingInterviews={upcomingInterviewsNew as any}
-          />
-        )}
-      </DashboardLayoutClient>
-    </div>
+    <DashboardClient
+      userName={userName}
+      firstName={firstName}
+      targetRole={targetRole}
+    />
   );
 }

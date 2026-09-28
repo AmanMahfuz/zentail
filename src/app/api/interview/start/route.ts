@@ -1,71 +1,103 @@
+// src/app/api/interview/start/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { InterviewConfigSchema } from "@/lib/interview/schemas";
-import { generateAdaptiveQuestions } from "@/lib/interview/generate-questions";
+import { startAdaptiveInterview } from "@/lib/interview/adaptive-engine";
+import { InterviewRoleFamily } from "@/config/interviewTracks";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const config = InterviewConfigSchema.parse(body);
+    const {
+      role,
+      company,
+      jobDescription,
+      roleFamily,
+      tracks,
+      difficulty,
+      simulationMode,
+      goal,
+      budgetLimit,
+      applicationId,
+      voice,
+    } = body;
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    let targetRole = role;
+    let targetCompany = company || "Target Company";
+    let targetJd = jobDescription || "";
+    let resumeContent = "";
 
-    const { data: app, error } = await supabase
-      .from("applications")
-      .select("*, jobs(title, company, description)")
-      .eq("id", config.applicationId)
-      .eq("user_id", user.id)
-      .single();
+    // If linked to an application, load context from DB if missing
+    if (applicationId && user) {
+      const { data: app } = await supabase
+        .from("applications")
+        .select("job_title, company_name, job_description, resume_versions(content)")
+        .eq("id", applicationId)
+        .eq("user_id", user.id)
+        .single();
 
-    if (error || !app || !app.jobs) {
-      return NextResponse.json({ error: "Application not found" }, { status: 404 });
+      if (app) {
+        if (!targetRole) targetRole = app.job_title;
+        if (!company) targetCompany = app.company_name;
+        if (!targetJd) targetJd = app.job_description || "";
+        const resumeVer = Array.isArray(app.resume_versions) ? app.resume_versions[0] : app.resume_versions;
+        if (resumeVer?.content) {
+          resumeContent = JSON.stringify(resumeVer.content);
+        }
+      }
     }
 
-    const job = Array.isArray(app.jobs) ? app.jobs[0] : app.jobs;
-
-    // TODO: Connect resume and skill gaps. Using placeholders for now.
-    const resumeContent = "Placeholder resume content";
-    const skillGaps: any[] = [];
-
-    const questions = await generateAdaptiveQuestions(
-      config,
-      job.description || "",
-      resumeContent,
-      skillGaps
-    );
-
-    if (!questions || questions.length === 0) {
-      return NextResponse.json({ error: "Failed to generate questions" }, { status: 500 });
+    if (!targetRole) {
+      targetRole = "Software Engineer";
     }
 
-    const { data: session, error: sessionError } = await (supabase as any)
-      .from("interview_sessions")
-      .insert({
-        user_id: user.id,
-        application_id: config.applicationId,
-        questions: questions,
-        status: "active",
-        difficulty: config.difficulty,
-        tracks: config.tracks,
-        mode: config.mode
-      })
-      .select()
-      .single();
+    // Call adaptive engine
+    const { questions } = await startAdaptiveInterview({
+      role: targetRole,
+      company: targetCompany,
+      jobDescription: targetJd,
+      resumeDataJson: resumeContent || "Candidate profile",
+      goal: goal || "full_mock",
+      mode: goal || "behavioral",
+      roleFamily: (roleFamily as InterviewRoleFamily) || "technology",
+      tracks: tracks || ["behavioral", "technical"],
+      difficulty: difficulty || "Intermediate",
+      budgetLimit: budgetLimit || 5,
+      voice: voice || "Kore",
+    });
 
-    if (sessionError) {
-      return NextResponse.json({ error: "Failed to save session" }, { status: 500 });
+    const sessionId = crypto.randomUUID();
+
+    // Record session if user is logged in
+    if (user) {
+      try {
+        await (supabase as any).from("interview_sessions").insert({
+          id: sessionId,
+          user_id: user.id,
+          application_id: applicationId || null,
+          questions: questions,
+          difficulty: (difficulty || "intermediate").toLowerCase(),
+          mode: simulationMode || "text",
+          tracks: tracks || ["behavioral", "technical"],
+          status: "active",
+        });
+      } catch (dbErr) {
+        console.warn("interview_sessions record warning:", dbErr);
+      }
     }
 
-    return NextResponse.json({ 
-      sessionId: session.id, 
+    return NextResponse.json({
+      success: true,
       questions,
-      config
+      sessionId,
     });
   } catch (error: any) {
-    console.error("Start API Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Start interview error:", error);
+    return NextResponse.json(
+      { error: error?.message || "Failed to start interview session" },
+      { status: 500 }
+    );
   }
 }

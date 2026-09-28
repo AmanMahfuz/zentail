@@ -26,6 +26,25 @@
   --color-sunset-wash:     #bfdbfe; /* blue-200 */
   --color-sunset-whisper:  #eff6ff; /* blue-50 */
 
+  /* Semantic UI Tokens */
+  --text-primary:          #09090b;
+  --text-secondary:        #52525b;
+  --text-muted:            #71717a;
+  --fill-accent:           #2563eb;
+  --text-accent:           #2563eb;
+  --border-accent:         #bfdbfe;
+  --surface-1:             #f4f4f5;
+  --surface-2:             #ffffff;
+  --bg-success:            #dcfce7;
+  --text-success:          #166534;
+  --border-success:        #86efac;
+  --bg-warning:            #fef9c3;
+  --text-warning:          #854d0e;
+  --border-warning:        #fde047;
+  --bg-danger:             #fee2e2;
+  --text-danger:           #991b1b;
+  --border-danger:         #fca5a5;
+
   /* Typography */
   --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;

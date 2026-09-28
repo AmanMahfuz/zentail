@@ -15,12 +15,11 @@ export default async function CoverLetterCenterPage({
 
   const { data: application } = await supabase
     .from("applications")
-    .select("id, job:jobs(title, company, description)")
+    .select("id, job_title, company_name, job_description")
     .eq("id", applicationId)
     .single();
 
   if (!application) redirect("/applications");
-  const job = application.job as any;
 
   let { data: letterRaw } = await supabase
     .from("cover_letters_generated")
@@ -41,8 +40,8 @@ export default async function CoverLetterCenterPage({
   return (
     <CoverLetterCenterClient
       applicationId={applicationId}
-      jobTitle={job?.title ?? ""}
-      company={job?.company ?? ""}
+      jobTitle={application.job_title ?? ""}
+      company={application.company_name ?? ""}
       letter={letter}
     />
   );

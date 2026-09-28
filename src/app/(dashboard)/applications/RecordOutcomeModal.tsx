@@ -30,7 +30,7 @@ export function RecordOutcomeModal({ app, isOpen, onOpenChange }: { app: any, is
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Record Outcome: {app.job?.company}</DialogTitle>
+          <DialogTitle>Record Outcome: {app.company_name || app.job?.company || "Company"}</DialogTitle>
           <DialogDescription>
             What was the final result of this application? This helps us find patterns in what works.
           </DialogDescription>

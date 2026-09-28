@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { GoogleGenAI } from "@google/genai";
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+import { generateInterviewPrep } from "@/lib/actions/phase3";
 
 export async function POST(req: Request) {
   try {
@@ -13,40 +11,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { jobUrl, description, company, title, preComputedAnalysis } = await req.json();
+    const body = await req.json();
+    const jobUrl = body.jobUrl || body.job_link;
+    const description = body.description || body.jobDescription || body.job_description || "";
+    const company = body.company || body.preComputedAnalysis?.company || "Target Company";
+    const title = body.title || body.preComputedAnalysis?.jobTitle || "Target Role";
+    const preComputedAnalysis = body.preComputedAnalysis;
 
-    // 1. Create Job record
-    const { data: job, error: jobError } = await supabase
-      .from("jobs")
-      .insert({
-        user_id: user.id,
-        title: title || "New Role",
-        company: company || "Unknown Company",
-        url: jobUrl,
-        description: description,
-      })
-      .select()
-      .single();
-
-    if (jobError) console.warn("Job creation error (may be ignored if schema uses flattened fields):", jobError);
-
-    // 2. Map precomputed analysis if available
+    // Build application record — all job data lives directly on applications
     const appData: any = {
       user_id: user.id,
-      job_title: title || "New Role",
-      company_name: company || "Unknown Company",
+      job_title: title,
+      company_name: company,
       job_description: description,
       job_link: jobUrl,
-      status: "analyzing",
+      status: "review_needed",
+      resume_version_id: body.resumeVersionId || body.resume_version_id || null,
     };
 
-    if (job) {
-      appData.job_id = job.id;
-    }
-
     if (preComputedAnalysis) {
-      appData.status = "review_needed";
-      appData.fit_score = preComputedAnalysis.fitScore;
+      appData.fit_score = preComputedAnalysis.fitScore ?? 70;
       appData.fit_summary = preComputedAnalysis.whatIsHoldingBack || preComputedAnalysis.verdict;
       appData.matched_skills = preComputedAnalysis.matched || [];
       appData.partial_skills = preComputedAnalysis.partial || [];
@@ -54,7 +38,7 @@ export async function POST(req: Request) {
       appData.improvements = preComputedAnalysis.improvements || [];
     }
 
-    // 3. Create Application record
+    // Create Application record
     const { data: application, error: appError } = await (supabase
       .from("applications")
       .insert(appData as any) as any)
@@ -63,13 +47,69 @@ export async function POST(req: Request) {
 
     if (appError) throw appError;
 
-    // 3. Kick off async analysis (don't await)
-    // We would hit a pub/sub or background queue here in production, 
-    // but for MVP we will trigger the agent API endpoint synchronously or return and fetch
-    // To keep it simple, we just return the application and let the UI poll
-    // In a real app we'd dispatch to Inngest/Trigger.dev
+    // 4. If preComputedAnalysis is present, insert requirement_map entries
+    if (preComputedAnalysis && application) {
+      const reqEntries: any[] = [];
+      (preComputedAnalysis.matched || []).forEach((req: string) => {
+        reqEntries.push({
+          application_id: application.id,
+          requirement_text: req,
+          status: "matched",
+          notes: "Matched from initial resume analysis"
+        });
+      });
+      (preComputedAnalysis.partial || []).forEach((req: string) => {
+        reqEntries.push({
+          application_id: application.id,
+          requirement_text: req,
+          status: "partial",
+          notes: "Identified as partial match"
+        });
+      });
+      (preComputedAnalysis.missing || []).forEach((req: string) => {
+        reqEntries.push({
+          application_id: application.id,
+          requirement_text: req,
+          status: "missing",
+          notes: "Missing from initial resume"
+        });
+      });
 
-    return NextResponse.json(application);
+      if (reqEntries.length > 0) {
+        await (supabase as any).from("requirement_map").insert(reqEntries);
+      }
+    }
+
+    // Auto-tailor the resume for this application (scans user collection, selects best base, tailors to JD, links to app, and generates interview prep)
+    try {
+      const { ResumeAgent } = await import("@/lib/agents/resume-agent");
+      const tailorResult = await ResumeAgent.tailorForJob(application.id);
+      if (tailorResult.success) {
+        const { data: updatedApp } = await (supabase as any)
+          .from("applications")
+          .select("resume_version_id, fit_score")
+          .eq("id", application.id)
+          .single();
+        if (updatedApp?.resume_version_id) {
+          application.resume_version_id = updatedApp.resume_version_id;
+          application.fit_score = updatedApp.fit_score ?? application.fit_score;
+        }
+      }
+    } catch (tailorErr) {
+      console.warn("Auto-tailoring warning on app creation:", tailorErr);
+    }
+
+    // Automatically trigger normal text-based interview question prep if not already done
+    try {
+      await generateInterviewPrep(application.id);
+    } catch (prepErr) {
+      console.warn("Interview prep auto-generation warning:", prepErr);
+    }
+
+    return NextResponse.json({
+      ...application,
+      applicationId: application.id
+    });
 
   } catch (error: any) {
     console.error("Create application error:", error);

@@ -145,16 +145,14 @@ ${rawText}
     const parsedResult = JSON.parse(response.text || "{}");
 
     // Insert the generated resume into the database
-    const { data: dbData, error: dbError } = await supabase
-      .from("resumes")
+    const { data: dbData, error: dbError } = await (supabase as any)
+      .from("resume_versions")
       .insert({
         user_id: user.id,
-        name: "AI Generated Master Resume",
-        type: "master",
-        version_tag: "V1",
+        version_label: "AI Generated Master Resume",
+        origin_type: "master",
         content: parsedResult,
-        is_default: false,
-        file_url: "", // AI-generated resumes don't necessarily have a file initially
+        is_latest: false,
       })
       .select("id")
       .single();

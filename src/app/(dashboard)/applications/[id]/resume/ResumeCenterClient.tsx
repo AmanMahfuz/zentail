@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { saveResumeEdits, generateTailoredResume } from "@/lib/actions/phase3";
 import { useRouter } from "next/navigation";
+import { ResumeDownloadButton } from "@/components/resumes/ResumeDownloadButton";
 
 type ResumeData = {
   id: string;
@@ -93,6 +94,15 @@ export function ResumeCenterClient({
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {resume?.id && (
+            <Link
+              href={`/resumes/${resume.id}/edit`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all border border-slate-200"
+              title="Open in Full Visual Resume Builder"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-blue-600" /> Full Builder
+            </Link>
+          )}
           <button
             onClick={handleRegenerate}
             disabled={regenerating}
@@ -111,16 +121,14 @@ export function ResumeCenterClient({
             {saved ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
             {saved ? "Saved!" : isPending ? "Saving…" : "Save"}
           </button>
-          {pdfUrl && (
-            <a
-              href={pdfUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white"
-              style={{ backgroundColor: "var(--color-midnight-ink)" }}
-            >
-              <Download className="w-3.5 h-3.5" /> Download PDF
-            </a>
+          {resume?.id && (
+            <ResumeDownloadButton
+              resumeId={resume.id}
+              resumeTitle={`${company || 'Company'}_${jobTitle || 'Resume'}`}
+              variant="default"
+              size="md"
+              className="bg-slate-900 hover:bg-black text-white"
+            />
           )}
         </div>
       </div>

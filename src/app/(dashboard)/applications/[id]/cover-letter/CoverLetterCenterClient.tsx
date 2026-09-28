@@ -43,6 +43,34 @@ export function CoverLetterCenterClient({
   const [pdfUrl, setPdfUrl] = useState(letter?.pdf_url ?? "");
   const [saved, setSaved] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    setIsDownloading(true);
+    try {
+      const targetId = letter?.id || applicationId;
+      const response = await fetch(`/api/download/cover-letter/${targetId}`);
+      if (!response.ok) {
+        throw new Error('Failed to generate Cover Letter PDF');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Cover_Letter_${(company || 'Company').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 100);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Failed to download Cover Letter PDF');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const handleSave = () => {
     if (!letter?.id) return;
@@ -109,17 +137,23 @@ export function CoverLetterCenterClient({
             {saved ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
             {saved ? "Saved!" : isPending ? "Saving…" : "Save"}
           </button>
-          {pdfUrl && (
-            <a
-              href={pdfUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white"
-              style={{ backgroundColor: "var(--color-midnight-ink)" }}
-            >
-              <Download className="w-3.5 h-3.5" /> Download PDF
-            </a>
-          )}
+          <button
+            onClick={handleDownloadPdf}
+            disabled={isDownloading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-all bg-slate-900 hover:bg-black disabled:opacity-50 cursor-pointer shadow-xs"
+          >
+            {isDownloading ? (
+              <>
+                <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                <span>Generating PDF...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5" />
+                <span>Download PDF</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 

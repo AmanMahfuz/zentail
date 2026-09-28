@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Loader2, Sparkles } from "lucide-react";
@@ -8,11 +9,19 @@ import { generateMasterResume } from "@/lib/actions/ai-resume-generator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-export function AIGenerateModal({ children }: { children?: React.ReactElement }) {
-  const [isOpen, setIsOpen] = useState(false);
+export function AIGenerateModal({ children, forceOpen = false, onClose }: { children?: React.ReactElement, forceOpen?: boolean, onClose?: () => void }) {
+  const router = useRouter();
+  const [isOpen, setIsOpen] = useState(forceOpen);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rawText, setRawText] = useState("");
+
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open && onClose) {
+      onClose();
+    }
+  };
 
   const handleGenerate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -27,10 +36,13 @@ export function AIGenerateModal({ children }: { children?: React.ReactElement })
     const result = await generateMasterResume(rawText);
 
     if (result.success) {
-      setIsOpen(false);
+      handleOpenChange(false);
       setRawText("");
-      // Optionally redirect to the editor: 
-      // window.location.href = `/resumes/${result.resumeId}/edit`;
+      if (result.resumeId) {
+        router.push(`/resumes/builder?resumeId=${result.resumeId}`);
+      } else {
+        router.push("/resumes/builder");
+      }
     } else {
       setError(result.message || "Failed to generate resume.");
     }
@@ -38,16 +50,19 @@ export function AIGenerateModal({ children }: { children?: React.ReactElement })
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger
-        render={
-          children || (
-            <button className={cn(buttonVariants(), "bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl shadow-sm h-11 px-6 font-medium")}>
-              <Sparkles className="w-4 h-4 mr-2" /> AI Generate
-            </button>
-          )
-        }
-      />
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      {!forceOpen && (
+        <DialogTrigger
+          nativeButton={false}
+          render={
+            children || (
+              <button className={cn(buttonVariants(), "bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl shadow-sm h-11 px-6 font-medium")}>
+                <Sparkles className="w-4 h-4 mr-2" /> AI Generate
+              </button>
+            )
+          }
+        />
+      )}
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
