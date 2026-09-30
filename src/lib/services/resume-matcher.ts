@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { generateContentWithRetry } from "@/lib/gemini";
 import { ResumeMatchCandidate, ResumeRecommendation, RecommendationType } from "@/types/resume-matching";
 
 export interface MatcherResumeInput {
@@ -113,8 +114,8 @@ Return ONLY raw JSON with no Markdown wrappers matching this structure:
 }
 `;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+  const response = await generateContentWithRetry({
+    ai,
     contents: prompt,
     config: {
       responseMimeType: "application/json",

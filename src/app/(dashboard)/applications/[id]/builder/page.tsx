@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { ResumeBuilderClient } from "./ResumeBuilderClient";
+import ResumeBuilderClient from "@/app/(dashboard)/resumes/builder/ResumeBuilderClient";
+import { mapToBuilderResumeData } from "@/lib/resume/map-resume-data";
 import { redirect } from "next/navigation";
 
 export default async function ApplicationResumeBuilderPage({
@@ -76,6 +77,7 @@ export default async function ApplicationResumeBuilderPage({
       skills_missing: application.missing_skills ?? recommendation?.missing_skills ?? [],
       pdf_url: v.pdf_url ?? null,
       created_at: v.created_at,
+      version_label: v.version_label,
     };
   }
 
@@ -103,35 +105,26 @@ export default async function ApplicationResumeBuilderPage({
         skills_missing: application.missing_skills ?? recommendation?.missing_skills ?? [],
         pdf_url: fallbackVer.pdf_url ?? null,
         created_at: fallbackVer.created_at,
+        version_label: fallbackVer.version_label,
       };
     }
   }
 
-  const history = [
-    ...(generatedResumes || []).map((r: any) => ({
-      id: r.id,
-      version_label: `Tailored v${r.ats_score || 85}`,
-      match_percentage: r.match_percentage || r.ats_score || 85,
-      created_at: r.created_at,
-      pdf_url: r.pdf_url,
-    })),
-    ...(resumeVersions || []).map((v: any) => ({
-      id: v.id,
-      version_label: v.version_label || `Version ${v.version_number}`,
-      match_percentage: application.fit_score || 85,
-      created_at: v.created_at,
-      pdf_url: v.pdf_url,
-    })),
-  ];
+  const initialData = mapToBuilderResumeData({
+    versionContent:
+      activeResume?.content ||
+      (activeResume?.resume_markdown ? { markdown: activeResume.resume_markdown } : {}),
+    userMetadata: user.user_metadata,
+    userEmail: user.email,
+  });
 
   return (
-    <div className="h-[calc(100vh-64px)] w-full overflow-hidden bg-slate-50">
-      <ResumeBuilderClient
-        application={application}
-        recommendation={recommendation}
-        activeResume={activeResume}
-        history={history}
-      />
-    </div>
+    <ResumeBuilderClient
+      initialData={initialData}
+      hasExistingData={true}
+      versionLabel={activeResume?.version_label || `Tailored for ${application.company_name || "Job"}`}
+      resumeId={activeResume?.id || applicationId}
+      readOnly={false}
+    />
   );
 }

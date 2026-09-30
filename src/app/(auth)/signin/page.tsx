@@ -1,14 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Zap } from "lucide-react";
 import { signinAction } from "@/lib/actions/auth";
+import { createClient } from "@/lib/supabase/client";
 
 export default function SignInPage() {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) {
+        router.replace("/dashboard");
+      }
+    });
+  }, [router]);
 
   async function handleSubmit(formData: FormData) {
     setLoading(true);

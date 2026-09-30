@@ -1,6 +1,7 @@
 import React from "react";
 import { BuilderResumeData } from "@/types/resume-builder";
 import { Mail, Phone, MapPin, Globe } from "lucide-react";
+import { categorizeSkills } from "@/lib/resume/skills-categorizer";
 
 interface TemplateProps {
   data: BuilderResumeData;
@@ -20,6 +21,7 @@ export default function BalancedTemplate({ data }: TemplateProps) {
     theme,
   } = data;
 
+  const displayedSkills = categorizeSkills(skills);
   const isAts = theme.atsModeActive;
   const primaryColor = isAts ? "#111827" : theme.primaryColor || "#1e1b4b";
 
@@ -88,7 +90,9 @@ export default function BalancedTemplate({ data }: TemplateProps) {
           </p>
         )}
         <div className="flex flex-wrap justify-center items-center gap-x-2.5 gap-y-1 text-[10px] text-slate-600 border-t border-b border-slate-300 py-1.5 mt-1">
-          {contact.location && <span>{contact.location}</span>}
+          {contact.location && !contact.location.toLowerCase().includes("remote") && (
+            <span>{contact.location}</span>
+          )}
           {contact.phone && (
             <>
               <span className="text-slate-300">•</span>
@@ -245,7 +249,7 @@ export default function BalancedTemplate({ data }: TemplateProps) {
       )}
 
       {/* ── Skills & Expertise ─────────────────────────────────── */}
-      {skills.some((s) => s.items.trim()) && (
+      {displayedSkills.some((s) => s.items.trim()) && (
         <section style={{ marginBottom: density.sectionGap }}>
           <div className="flex items-center justify-center gap-3 mb-2">
             <div className="h-px bg-slate-300 flex-1" />
@@ -258,7 +262,7 @@ export default function BalancedTemplate({ data }: TemplateProps) {
             <div className="h-px bg-slate-300 flex-1" />
           </div>
           <div className="space-y-1">
-            {skills.filter((s) => s.items.trim()).map((s, idx) => (
+            {displayedSkills.filter((s) => s.items.trim()).map((s, idx) => (
               <div key={idx} className="text-[10.5px]">
                 <strong className="text-slate-900">{s.category}: </strong>
                 <span className="text-slate-700">{s.items}</span>

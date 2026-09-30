@@ -66,7 +66,7 @@ export function AiMatchAlert({ recommendations }: { recommendations: Recommendat
           <div key={rec.id} className="bg-white rounded-xl border border-slate-100 px-4 py-3 flex items-center gap-3 shadow-sm">
             {/* Avatar */}
             <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0">
-              {rec.company_name.charAt(0).toUpperCase()}
+              {(rec.company_name || "Company").charAt(0).toUpperCase()}
             </div>
 
             {/* Info */}

@@ -153,7 +153,10 @@ export function DashboardClient({ userName, firstName, targetRole }: { userName:
             </div>
           )}
         </div>
-        <AddApplicationModal triggerClassName="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm h-10 px-5 text-sm font-semibold transition-all" />
+        <AddApplicationModal
+          onSuccess={fetchData}
+          triggerClassName="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm h-10 px-5 text-sm font-semibold transition-all"
+        />
       </div>
 
       {loading ? (

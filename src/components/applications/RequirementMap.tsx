@@ -94,8 +94,17 @@ export function RequirementMap({ applicationId, requirementMap, status }: Props)
                   </span>
                 </div>
                 {req.evidence && (
-                  <div className="text-xs text-zinc-500 mt-1">
-                    {req.evidence}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium inline-flex items-center gap-1.5 ${
+                      req.evidence.includes("Project")
+                        ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40"
+                        : req.evidence.includes("Experience") || req.evidence.includes("job")
+                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40"
+                        : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                    }`}>
+                      <span>{req.evidence.includes("Project") ? "🛠️" : req.evidence.includes("job") || req.evidence.includes("Experience") ? "💼" : "🎯"}</span>
+                      {req.evidence}
+                    </span>
                   </div>
                 )}
               </div>

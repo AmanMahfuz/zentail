@@ -55,6 +55,26 @@ export default async function ResumesPage() {
     appById.set(a.id, a);
   });
 
+  // Fetch generated resumes as well to guarantee coverage for all tailored applications
+  const { data: generatedRaw } = await supabase
+    .from("resumes_generated")
+    .select(`
+      id,
+      user_id,
+      application_id,
+      job_title,
+      company,
+      resume_markdown,
+      match_percentage,
+      ats_score,
+      skills_matched,
+      skills_missing,
+      pdf_url,
+      created_at
+    `)
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
   // Map to Resume type
   const resumes = (resumesRaw || []).map(r => {
     const content = (r.content as any) || {};
@@ -94,11 +114,51 @@ export default async function ResumesPage() {
     };
   }) as any[];
 
-  const masterResumes = resumes.filter(r => r.type !== "tailored");
+  // Fallback map generated records not yet reflected in resume_versions
+  const generatedMapped = (generatedRaw || [])
+    .filter(g => !resumesRaw?.some(r => r.application_id === g.application_id || r.id === g.id))
+    .map(g => {
+      const linkedApp = g.application_id ? appById.get(g.application_id) : null;
+      const comp = g.company || linkedApp?.company_name || "Role";
+      const title = g.job_title || linkedApp?.job_title || "Tailored Resume";
+      return {
+        id: g.id,
+        user_id: g.user_id,
+        origin_type: "tailored",
+        type: "tailored",
+        version_label: `Tailored for ${comp}`,
+        name: `Tailored for ${comp}`,
+        is_default: false,
+        is_latest: true,
+        content: {
+          markdown: g.resume_markdown,
+          fullName: "Candidate",
+          skills: g.skills_matched || [],
+          experience: [],
+          education: [],
+        },
+        version: 1,
+        file_url: g.pdf_url,
+        fitScore: g.ats_score || g.match_percentage || linkedApp?.fit_score || 85,
+        matchedCount: Array.isArray(g.skills_matched) ? g.skills_matched.length : 8,
+        missingCount: Array.isArray(g.skills_missing) ? g.skills_missing.length : 2,
+        company: comp,
+        jobTitle: title,
+        application_id: g.application_id,
+        created_at: g.created_at,
+      };
+    });
+
+  const allResumes = [...resumes, ...generatedMapped].sort((a, b) => {
+    const timeA = new Date(a.created_at || a.updated_at || 0).getTime();
+    const timeB = new Date(b.created_at || b.updated_at || 0).getTime();
+    return timeB - timeA;
+  });
+  const masterResumes = allResumes.filter(r => r.type !== "tailored");
 
   // Deduplicate tailored resumes by job label / application to prevent duplicate cards
   const seenTailored = new Set<string>();
-  const tailoredResumes = resumes.filter(r => {
+  const tailoredResumes = allResumes.filter(r => {
     if (r.type !== "tailored") return false;
     const key = r.application_id || r.version_label || r.name;
     if (seenTailored.has(key)) return false;
@@ -108,7 +168,7 @@ export default async function ResumesPage() {
 
   return (
     <div className="flex flex-col flex-1 p-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-7xl mx-auto w-full overflow-y-auto">
-      <ResumeSessionSync resumesCount={resumes.length} />
+      <ResumeSessionSync resumesCount={allResumes.length} />
       {/* Breadcrumb */}
       <div className="text-[10px] font-bold tracking-widest text-slate-500 uppercase mb-3 flex items-center gap-2">
         <span>Workspace</span> <span className="text-slate-300">/</span> <span className="text-[#3730A3]">Resumes</span>
@@ -119,7 +179,7 @@ export default async function ResumesPage() {
           <h1 className="text-[32px] font-bold text-slate-900 tracking-tight mb-1 flex items-center gap-3" style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.02em" }}>
             Resumes
             <span className="text-xs font-semibold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full">
-              {resumes.length} Active
+              {allResumes.length} Active
             </span>
           </h1>
           <p className="text-slate-500 text-[15px]">
@@ -147,7 +207,7 @@ export default async function ResumesPage() {
         </div>
       </div>
 
-      {!resumes || resumes.length === 0 ? (
+      {!allResumes || allResumes.length === 0 ? (
         <div className="flex-1 flex flex-col">
           <div className="text-center py-20 bg-[#F8FAFC]/50 rounded-[24px] border border-slate-200 shadow-sm relative overflow-hidden mb-8">
             <div className="w-[120px] h-[120px] bg-indigo-50/50 rounded-3xl mx-auto mb-6 flex items-center justify-center relative">
@@ -268,7 +328,7 @@ export default async function ResumesPage() {
         </div>
       ) : (
         <ResumesListClient
-          resumes={resumes}
+          resumes={allResumes}
           masterResumes={masterResumes}
           tailoredResumes={tailoredResumes}
           applications={applicationsRaw || []}

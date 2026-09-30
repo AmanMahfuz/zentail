@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import puppeteer from 'puppeteer';
+import PDFDocument from 'pdfkit';
 
 export async function GET(
   req: NextRequest,
@@ -91,6 +92,13 @@ async function handleCoverLetterDownload(
       user.email?.split('@')[0] ||
       'Applicant';
     const candidateEmail = user.email || '';
+    const dateFormatted = new Date(coverLetter.created_at || Date.now()).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    const coverLetterText = coverLetter.cover_letter_content || coverLetter.content || '';
 
     // 4. Generate clean HTML for Cover Letter
     const html = generateCoverLetterHTML({
@@ -98,62 +106,88 @@ async function handleCoverLetterDownload(
       candidateEmail,
       jobTitle,
       companyName,
-      content: coverLetter.cover_letter_content || coverLetter.content || '',
-      dateStr: new Date(coverLetter.created_at || Date.now()).toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      }),
+      content: coverLetterText,
+      dateStr: dateFormatted,
     });
 
-    // 5. Render to PDF with Puppeteer
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu',
-      ],
-    });
-
+    // 5. Render to PDF with Puppeteer (with PDFKit fallback)
+    let pdfBuffer: Buffer;
     try {
-      const page = await browser.newPage();
-      await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });
-      await page.setContent(html, { waitUntil: 'domcontentloaded' });
-
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        preferCSSPageSize: true,
-        margin: {
-          top: '20mm',
-          bottom: '20mm',
-          left: '20mm',
-          right: '20mm',
-        },
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu',
+        ],
       });
 
-      await browser.close();
+      try {
+        const page = await browser.newPage();
+        await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });
+        await page.setContent(html, { waitUntil: 'domcontentloaded' });
 
-      const safeCompany = companyName.replace(/[^a-zA-Z0-9_-]/g, '_');
-      const filename = `Cover_Letter_${safeCompany}_${new Date().toISOString().slice(0, 10)}.pdf`;
+        const rendered = await page.pdf({
+          format: 'A4',
+          printBackground: true,
+          preferCSSPageSize: true,
+          margin: {
+            top: '20mm',
+            bottom: '20mm',
+            left: '20mm',
+            right: '20mm',
+          },
+        });
 
-      return new NextResponse(Buffer.from(pdfBuffer), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${filename}"`,
-          'Content-Length': pdfBuffer.length.toString(),
-        },
+        pdfBuffer = Buffer.from(rendered);
+      } finally {
+        await browser.close().catch(() => {});
+      }
+    } catch (puppeteerErr) {
+      console.warn('[CoverLetterDownload] Puppeteer failed, using PDFKit fallback:', puppeteerErr);
+      pdfBuffer = await generateCoverLetterPDFWithPDFKit({
+        candidateName,
+        candidateEmail,
+        jobTitle,
+        companyName,
+        content: coverLetterText,
+        dateStr: dateFormatted,
       });
-    } catch (renderError) {
-      await browser.close();
-      throw renderError;
     }
+
+    const safeCompany = companyName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `Cover_Letter_${safeCompany}_${new Date().toISOString().slice(0, 10)}.pdf`;
+
+    // Save to Supabase Storage
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(`cover-letters/${user.id}/${filename}`, pdfBuffer, {
+          contentType: 'application/pdf',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.warn('[CoverLetterDownload] Failed to upload to Supabase Storage:', uploadError);
+      } else {
+        console.log(`[CoverLetterDownload] Successfully uploaded ${filename} to Supabase Storage.`);
+      }
+    } catch (e) {
+      console.warn('[CoverLetterDownload] Error uploading to Supabase Storage:', e);
+    }
+
+    return new NextResponse(new Uint8Array(pdfBuffer), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': pdfBuffer.length.toString(),
+      },
+    });
   } catch (error: any) {
     console.error('Cover Letter PDF Generation Error:', error);
     return NextResponse.json(
@@ -161,6 +195,64 @@ async function handleCoverLetterDownload(
       { status: 500 }
     );
   }
+}
+
+function generateCoverLetterPDFWithPDFKit({
+  candidateName,
+  candidateEmail,
+  jobTitle,
+  companyName,
+  content,
+  dateStr,
+}: {
+  candidateName: string;
+  candidateEmail: string;
+  jobTitle: string;
+  companyName: string;
+  content: string;
+  dateStr: string;
+}): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 54, size: 'A4' });
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    // Header
+    doc.fontSize(20).font('Helvetica-Bold').fillColor('#0f172a').text(candidateName.toUpperCase());
+    if (candidateEmail) {
+      doc.fontSize(9.5).font('Helvetica').fillColor('#64748b').text(candidateEmail);
+    }
+    doc.moveDown(1);
+    doc.strokeColor('#0f172a').lineWidth(1.5).moveTo(54, doc.y).lineTo(541, doc.y).stroke();
+    doc.moveDown(1.2);
+
+    // Date & Recipient
+    doc.fontSize(9.5).font('Helvetica').fillColor('#64748b').text(dateStr);
+    doc.moveDown(0.6);
+    doc.fontSize(10.5).font('Helvetica-Bold').fillColor('#0f172a').text('Hiring Team');
+    doc.fontSize(10).font('Helvetica').fillColor('#334155').text(companyName);
+    doc.moveDown(0.4);
+    doc.fontSize(10.5).font('Helvetica-Bold').fillColor('#0f172a').text(`Re: Application for ${jobTitle}`);
+    doc.moveDown(1.2);
+
+    // Content
+    doc.fontSize(10).font('Helvetica').fillColor('#334155');
+    const paragraphs = content.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    paragraphs.forEach((p) => {
+      doc.text(p, { align: 'justify', lineGap: 3 });
+      doc.moveDown(0.8);
+    });
+
+    // Sign off
+    doc.moveDown(0.8);
+    doc.text('Sincerely,');
+    doc.moveDown(0.5);
+    doc.font('Helvetica-Bold').fillColor('#0f172a').text(candidateName);
+
+    doc.end();
+  });
 }
 
 function generateCoverLetterHTML({

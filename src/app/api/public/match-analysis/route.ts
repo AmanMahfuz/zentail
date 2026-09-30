@@ -1,8 +1,6 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 import { getCachedAIResult, setCachedAIResult, CACHE_TTL_DAYS } from "@/lib/cache";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+import { generateContentWithRetry } from "@/lib/gemini";
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,9 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Cache Miss: Execute Gemini Inference
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
+    // 2. Cache Miss: Execute Resilient Inference with Local Fallback
     const prompt = `
       You are an expert talent scout and ATS matching engine. Compare this candidate's verified profile and career evidence against the target job description.
       
@@ -81,8 +77,16 @@ export async function POST(request: NextRequest) {
       }
     `;
 
-    const result = await model.generateContent(prompt);
-    let text = result.response.text()
+    const result = await generateContentWithRetry({
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.2,
+      },
+    });
+
+    const rawText = typeof (result as any).text === "function" ? (result as any).text() : ((result as any).text || "");
+    let text = rawText
       .replace(/```json\s*/gi, "")
       .replace(/```\s*/g, "")
       .trim();

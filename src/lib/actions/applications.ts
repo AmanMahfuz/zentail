@@ -185,7 +185,15 @@ export async function createApplication(
     ResumeAgent.tailorForJob(appData.id),
     generateCoverLetter(appData.id),
     generateQABank(appData.id),
-  ]).catch(console.error);
+  ]).then(() => {
+    try {
+      revalidatePath("/applications");
+      revalidatePath("/resumes");
+      revalidatePath(`/applications/${appData.id}`);
+      revalidatePath(`/applications/${appData.id}/resume`);
+      revalidatePath("/dashboard");
+    } catch (_) {}
+  }).catch(console.error);
 
   revalidatePath("/applications");
   revalidatePath("/resumes");

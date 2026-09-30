@@ -2,6 +2,7 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
+import { generateContentWithRetry } from "@/lib/gemini";
 import { extractText } from "unpdf";
 import PDFDocument from "pdfkit";
 import { getCachedAIResult, setCachedAIResult, CACHE_TTL_DAYS } from "@/lib/cache";
@@ -141,8 +142,8 @@ ${truncate(job.description || "")}
 Write a ${tone} cover letter (3-4 paragraphs, ends with a call to action).`;
 
     const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await generateContentWithRetry({
+      ai,
       contents: prompt,
       config: {
         temperature: 0.5,
@@ -249,8 +250,8 @@ export async function generateLearningPath(skillId: string) {
     const prompt = `Suggest the best free and paid learning resources for the skill: "${gap.skill_name}".`;
 
     const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await generateContentWithRetry({
+      ai,
       contents: prompt,
       config: {
         temperature: 0.3,
@@ -468,8 +469,8 @@ Generate a JSON object containing:
       `;
 
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+      const response = await generateContentWithRetry({
+        ai,
         contents: prompt,
         config: {
           temperature: 0.2,
@@ -598,8 +599,8 @@ Return ONLY raw JSON array:
     "keywords": ["keyword1", "keyword2"]
   }
 ]`;
-        const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+        const response = await generateContentWithRetry({
+          ai,
           contents: prompt,
         });
 

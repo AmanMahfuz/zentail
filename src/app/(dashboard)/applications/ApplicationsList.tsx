@@ -52,7 +52,7 @@ export function ApplicationsList({ applications }: { applications: any[] }) {
       if (sortField === "company")    { av = a.job.company; bv = b.job.company; }
       else if (sortField === "title") { av = a.job.title;   bv = b.job.title; }
       else if (sortField === "status"){ av = a.status;       bv = b.status; }
-      else { av = a.applied_at ?? ""; bv = b.applied_at ?? ""; }
+      else { av = a.applied_at ?? a.created_at ?? ""; bv = b.applied_at ?? b.created_at ?? ""; }
       return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
     });
   }, [applications, sortField, sortDir]);
@@ -102,7 +102,8 @@ export function ApplicationsList({ applications }: { applications: any[] }) {
         {/* Rows */}
         <div className="overflow-y-auto flex-1">
           {sorted.map((app) => {
-            const colorClass = AVATAR_COLORS[app.job.company.length % AVATAR_COLORS.length];
+            const safeCompany = app.job?.company || "Target Company";
+            const colorClass = AVATAR_COLORS[safeCompany.length % AVATAR_COLORS.length];
             const statusMeta = STATUS_LABELS[app.status] ?? { label: app.status, cls: "bg-slate-100 text-slate-700 border-slate-100" };
             const days = totalDays(app);
             const stale = (app.status === "applied" || app.status === "assessment") && days !== null && days > 14;
@@ -116,10 +117,10 @@ export function ApplicationsList({ applications }: { applications: any[] }) {
                 {/* Company */}
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-bold text-xs ${colorClass}`}>
-                    {app.job.company.charAt(0).toUpperCase()}
+                    {safeCompany.charAt(0).toUpperCase()}
                   </div>
                   <span className="text-sm font-medium text-slate-900 truncate group-hover:text-blue-600 transition-colors">
-                    {app.job.company}
+                    {safeCompany}
                   </span>
                 </div>
 
@@ -134,8 +135,8 @@ export function ApplicationsList({ applications }: { applications: any[] }) {
                 {/* Applied date */}
                 <div className="flex flex-col">
                   <span className="text-xs text-slate-600">
-                    {app.applied_at
-                      ? new Date(app.applied_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+                    {app.applied_at || app.created_at
+                      ? new Date(app.applied_at || app.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
                       : "—"}
                   </span>
                   {stale && (

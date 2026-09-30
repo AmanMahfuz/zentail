@@ -176,17 +176,21 @@ export default function LandingPage() {
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) {
         setCurrentUser(data.user);
+        router.replace("/dashboard");
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setCurrentUser(session?.user ?? null);
+      if (session?.user) {
+        router.replace("/dashboard");
+      }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, router]);
 
   const handleSignOut = async () => {
     try {
@@ -249,6 +253,20 @@ export default function LandingPage() {
       setExtractedProfile(extracted);
       setAuthName(extracted.personal?.fullName || "");
       setAuthEmail(extracted.personal?.email || "");
+
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("parsed_resume", JSON.stringify({
+          name: extracted.personal?.fullName || "",
+          email: extracted.personal?.email || "",
+          currentRole: extracted.experience?.[0]?.jobTitle || extracted.experience?.[0]?.title || (extracted.personal as any)?.jobTitle || "",
+          skills: (extracted.skills || []).map((s: any) => typeof s === "string" ? s : s.name),
+          experience: extracted.experience || [],
+          projects: extracted.projects || [],
+          education: extracted.education || [],
+          rawProfile: extracted
+        }));
+      }
+
       setStep("review_profile");
     } catch (err: any) {
       console.error("Extraction error:", err);
@@ -279,6 +297,12 @@ export default function LandingPage() {
       }
 
       setResult(data.analysis);
+
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("pending_jd", jd);
+        sessionStorage.setItem("analysis_result", JSON.stringify(data.analysis));
+      }
+
       setStep("result");
     } catch (err: any) {
       console.error("Match analysis error:", err);
@@ -646,7 +670,7 @@ export default function LandingPage() {
                   Paste the job you want
                 </div>
                 <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 14, lineHeight: 1.5 }}>
-                  We'll ask you a few questions about your experience and build your first resume from scratch.
+                  We'll guide you through a clean, step-by-step profile builder with dedicated input boxes for your education, projects, experience, and skills.
                 </div>
                 <textarea
                   value={freshJd}

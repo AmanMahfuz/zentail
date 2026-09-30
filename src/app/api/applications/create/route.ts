@@ -106,6 +106,22 @@ export async function POST(req: Request) {
       console.warn("Interview prep auto-generation warning:", prepErr);
     }
 
+    // Automatically generate 15-question interview Q&A bank if not already done
+    try {
+      const { generateQABank } = await import("@/lib/actions/phase3");
+      await generateQABank(application.id);
+    } catch (qaErr) {
+      console.warn("Interview QA bank auto-generation warning:", qaErr);
+    }
+
+    try {
+      const { revalidatePath } = await import("next/cache");
+      revalidatePath("/dashboard");
+      revalidatePath("/applications");
+      revalidatePath("/resumes");
+      revalidatePath(`/applications/${application.id}`);
+    } catch (_) {}
+
     return NextResponse.json({
       ...application,
       applicationId: application.id

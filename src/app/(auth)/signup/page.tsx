@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Zap, Check } from "lucide-react";
 import { signupAction } from "@/lib/actions/auth";
+import { createClient } from "@/lib/supabase/client";
 
 function getPasswordStrength(pw: string): { label: string; color: string; bars: number } {
   if (!pw) return { label: "", color: "", bars: 0 };
@@ -29,6 +30,7 @@ export default function SignUpPage() {
 }
 
 function SignUpForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,6 +39,15 @@ function SignUpForm() {
   const [password, setPassword] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [agreed, setAgreed] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) {
+        router.replace("/dashboard");
+      }
+    });
+  }, [router]);
 
   const strength = getPasswordStrength(password);
   const pwMatch = confirmPw === "" || password === confirmPw;

@@ -136,7 +136,7 @@ export function MasterResumeCard({
             variant="outline"
             className="w-full bg-[#F8FAFC] border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl h-10 font-bold text-xs"
           >
-            Edit Master
+            Open in Builder
           </Button>
         </Link>
         <TailorJobModal
@@ -248,19 +248,19 @@ export function TailoredResumeCard({ resume }: { resume: any }) {
             variant="outline"
             className="w-full bg-[#F8FAFC] border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl h-10 font-bold text-xs"
           >
-            Edit in Builder
+            Open in Builder
           </Button>
         </Link>
         {resume.application_id ? (
-          <Link href={`/applications/${resume.application_id}/interview`} className="block">
-            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-10 font-bold text-xs shadow-xs flex items-center justify-center gap-1">
-              Interview Prep <ArrowRight className="w-3.5 h-3.5" />
+          <Link href={`/applications/${resume.application_id}`} className="block">
+            <Button className="w-full bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl h-10 font-bold text-xs shadow-xs flex items-center justify-center gap-1">
+              View Match & ATS <ArrowRight className="w-3.5 h-3.5" />
             </Button>
           </Link>
         ) : (
-          <Link href={`/resumes/${resume.id}/view`} className="block">
+          <Link href={`/resumes/${resume.id}/edit`} className="block">
             <Button className="w-full bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl h-10 font-bold text-xs shadow-xs">
-              Preview
+              Open in Builder
             </Button>
           </Link>
         )}

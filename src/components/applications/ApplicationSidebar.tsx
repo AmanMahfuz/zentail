@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, CheckSquare, Check, Lock, Info, Hash, Upload, Download, Trash2, Archive } from "lucide-react";
+import { FileText, CheckSquare, Check, Lock, Info, Hash, Upload, Download, Trash2, Archive, Eye } from "lucide-react";
 import { updateApplicationNotes, deleteApplication } from "@/lib/actions/applications";
 import { useRouter } from "next/navigation";
+import { DocumentViewerModal, DocumentFile } from "./DocumentViewerModal";
 
 export function ApplicationSidebar({ app, files, readiness }: { app: any, files: any[], readiness: any }) {
   const [notes, setNotes] = useState(app.notes || "");
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState("Autosaved just now");
+  const [viewingFile, setViewingFile] = useState<DocumentFile | null>(null);
   const router = useRouter();
 
   const handleSaveNotes = async () => {
@@ -77,7 +79,20 @@ export function ApplicationSidebar({ app, files, readiness }: { app: any, files:
         
         <div className="space-y-2 mb-4">
           {files.map((file, i) => (
-            <div key={i} className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-100 rounded-xl group cursor-pointer hover:border-slate-200 transition-colors">
+            <div
+              key={i}
+              onClick={() => {
+                if (file.type === 'resume') {
+                  router.push(`/applications/${app.id}/builder`);
+                } else if (file.type === 'cover_letter') {
+                  router.push(`/applications/${app.id}/cover-letter`);
+                } else {
+                  setViewingFile(file);
+                }
+              }}
+              className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-100 rounded-xl group cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-all"
+              title="Click to preview file"
+            >
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                   file.type === 'resume' ? 'bg-indigo-100 text-indigo-600' :
@@ -87,33 +102,43 @@ export function ApplicationSidebar({ app, files, readiness }: { app: any, files:
                   {file.type === 'resume' ? '📄' : file.type === 'cover_letter' ? '✉️' : '📋'}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-bold text-slate-700 truncate">{file.name}</p>
+                  <p className="text-[11px] font-bold text-slate-700 truncate group-hover:text-indigo-600 transition-colors">{file.name}</p>
                   <p className="text-[9px] font-medium text-slate-400">{file.meta}</p>
                 </div>
               </div>
-              <button 
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (file.url && file.url !== "#") {
-                    window.open(file.url, "_blank");
-                  } else if (file.markdown) {
-                    const element = document.createElement("a");
-                    const blob = new Blob([file.markdown], { type: "text/markdown" });
-                    element.href = URL.createObjectURL(blob);
-                    element.download = file.name;
-                    document.body.appendChild(element);
-                    element.click();
-                    document.body.removeChild(element);
-                  } else {
-                    alert("No file content available yet.");
-                  }
-                }}
-                className="p-1 cursor-pointer z-10 relative"
-                title="Download File"
-              >
-                <Download className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 opacity-0 group-hover:opacity-100 transition-all shrink-0" />
-              </button>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-semibold text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 mr-1">
+                  <Eye className="w-3 h-3" /> View
+                </span>
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (file.url && file.url !== "#") {
+                      const element = document.createElement("a");
+                      element.href = file.url;
+                      element.download = file.name || "document.pdf";
+                      document.body.appendChild(element);
+                      element.click();
+                      document.body.removeChild(element);
+                    } else if (file.markdown) {
+                      const element = document.createElement("a");
+                      const blob = new Blob([file.markdown], { type: "text/markdown" });
+                      element.href = URL.createObjectURL(blob);
+                      element.download = file.name;
+                      document.body.appendChild(element);
+                      element.click();
+                      document.body.removeChild(element);
+                    } else {
+                      setViewingFile(file);
+                    }
+                  }}
+                  className="p-1 cursor-pointer z-10 relative hover:bg-slate-200/60 rounded"
+                  title="Download File"
+                >
+                  <Download className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 transition-all shrink-0" />
+                </button>
+              </div>
             </div>
           ))}
           {files.length === 0 && (
@@ -223,6 +248,16 @@ export function ApplicationSidebar({ app, files, readiness }: { app: any, files:
           </button>
         </div>
       </div>
+
+      {viewingFile && (
+        <DocumentViewerModal
+          file={viewingFile}
+          applicationId={app.id}
+          companyName={app.company_name}
+          jobTitle={app.job_title}
+          onClose={() => setViewingFile(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import React from "react";
 import { BuilderResumeData } from "@/types/resume-builder";
+import { categorizeSkills } from "@/lib/resume/skills-categorizer";
 
 interface TemplateProps {
   data: BuilderResumeData;
@@ -23,12 +24,15 @@ export default function ExperiencedTemplate({ data }: TemplateProps) {
   } = data;
 
   const fontName = theme.fontFamily || "Inter";
+  const displayedSkills = categorizeSkills(skills);
 
   // Build contact items with icons/delimiters
   const contactParts: Array<{ text: string; icon?: string }> = [];
   if (contact.email) contactParts.push({ text: contact.email, icon: "✉" });
   if (contact.phone) contactParts.push({ text: contact.phone, icon: "📞" });
-  if (contact.location) contactParts.push({ text: contact.location, icon: "📍" });
+  if (contact.location && !contact.location.toLowerCase().includes("remote")) {
+    contactParts.push({ text: contact.location, icon: "📍" });
+  }
   
   const codeLink = contact.github || contact.portfolio || contact.linkedin || contact.website;
   if (codeLink) {
@@ -103,7 +107,7 @@ export default function ExperiencedTemplate({ data }: TemplateProps) {
       )}
 
       {/* TECHNICAL PROFICIENCIES */}
-      {skills.length > 0 && (
+      {displayedSkills.length > 0 && (
         <section className="mb-[12pt]">
           <div className="border-b border-slate-300 pb-[1.5pt] mb-[5pt]">
             <h2
@@ -114,7 +118,7 @@ export default function ExperiencedTemplate({ data }: TemplateProps) {
             </h2>
           </div>
           <div className="space-y-[3pt]" style={{ fontSize: "9.5pt", lineHeight: "1.25" }}>
-            {skills.map((skill) => (
+            {displayedSkills.map((skill) => (
               <div key={skill.id || skill.category} className="grid grid-cols-12 gap-2">
                 <span className="col-span-3 font-bold text-slate-900 shrink-0">
                   {skill.category}:

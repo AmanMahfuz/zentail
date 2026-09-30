@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
+import { generateContentWithRetry } from "@/lib/gemini";
 import { extractText } from "unpdf";
 import PDFDocument from "pdfkit";
 
@@ -52,11 +53,12 @@ async function uploadToSupabaseBucket(
     return null;
   }
 
-  const { data: signed } = await supabase.storage
+  const { data: pub } = supabase.storage
     .from("generated-docs")
-    .createSignedUrl(path, 60 * 60 * 24 * 7);
+    .getPublicUrl(path);
 
-  return signed?.signedUrl ?? null;
+  const url = pub?.publicUrl || null;
+  return url && url.length <= 500 ? url : null;
 }
 
 const MAX_CHARS = 6000;
@@ -160,8 +162,8 @@ Instructions:
 4. Provide a brief rationale explaining why this resume was selected.
 `;
 
-            const scanResponse = await ai.models.generateContent({
-              model: "gemini-2.5-flash",
+            const scanResponse = await generateContentWithRetry({
+              ai,
               contents: scanPrompt,
               config: {
                 temperature: 0.1,
@@ -304,8 +306,8 @@ Format the resume_markdown to match this exact shape:
 
       // 3. Execution (Gemini Call)
       console.log(`[ResumeAgent] Calling Gemini...`);
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+      const response = await generateContentWithRetry({
+        ai,
         contents: prompt,
         config: {
           temperature: 0.2,
@@ -328,9 +330,10 @@ Format the resume_markdown to match this exact shape:
       console.log(`[ResumeAgent] Gemini returned score: ${parsed.ats_score}`);
 
       // 4. Persistence
+      const targetUserId = application.user_id || user.id;
       const pdfBuffer = await generatePDFBuffer(parsed.resume_markdown || "");
       const filename = `resume-${applicationId}-${Date.now()}.pdf`;
-      const pdfUrl = await uploadToSupabaseBucket(supabase, user.id, "resumes", filename, pdfBuffer);
+      const pdfUrl = await uploadToSupabaseBucket(supabase, targetUserId, "resumes", filename, pdfBuffer);
 
       const { data: existingGen } = await supabase
         .from("resumes_generated")
@@ -358,7 +361,7 @@ Format the resume_markdown to match this exact shape:
         const { data: newGen, error: insertError } = await supabase
           .from("resumes_generated")
           .insert({
-            user_id: user.id,
+            user_id: targetUserId,
             application_id: application.id,
             job_title: job.title,
             company: job.company,
@@ -386,51 +389,84 @@ Format the resume_markdown to match this exact shape:
           .eq("application_id", application.id)
           .maybeSingle();
 
+        const versionContent = baseContent
+          ? {
+              ...baseContent,
+              markdown: parsed.resume_markdown,
+              ats_score: parsed.ats_score,
+              match_percentage: parsed.ats_score,
+              skills_matched: parsed.skills_matched ?? [],
+              skills_missing: parsed.skills_missing ?? [],
+            }
+          : {
+              markdown: parsed.resume_markdown,
+              ats_score: parsed.ats_score,
+              match_percentage: parsed.ats_score,
+              skills_matched: parsed.skills_matched ?? [],
+              skills_missing: parsed.skills_missing ?? [],
+            };
+
         let verRow: any = null;
+        const safeLabel = (`Tailored for ${job.company || "Target Role"}`).slice(0, 200);
+        const safePdfUrl = pdfUrl && pdfUrl.length <= 500 ? pdfUrl : null;
+
         if (existingVer) {
-          const { data: updatedVer } = await (supabase as any)
+          const { data: updatedVer, error: updateVerErr } = await (supabase as any)
             .from("resume_versions")
             .update({
-              content: baseContent ? { ...baseContent, markdown: parsed.resume_markdown } : { markdown: parsed.resume_markdown },
-              pdf_url: pdfUrl,
+              content: versionContent,
+              pdf_url: safePdfUrl,
               is_latest: true,
             })
             .eq("id", existingVer.id)
             .select("id")
             .single();
+          if (updateVerErr) {
+            console.error("[ResumeAgent] resume_versions update error:", updateVerErr);
+          }
           verRow = updatedVer;
         } else {
           const nextVerNum = (userVersions?.[0]?.version_number || 0) + 1;
           await (supabase as any)
             .from("resume_versions")
             .update({ is_latest: false })
-            .eq("user_id", user.id);
+            .eq("user_id", targetUserId);
 
-          const { data: newVer } = await (supabase as any)
+          const { data: newVer, error: insertVerErr } = await (supabase as any)
             .from("resume_versions")
             .insert({
-              user_id: user.id,
+              user_id: targetUserId,
               version_number: nextVerNum,
-              version_label: `Tailored for ${job.company}`,
+              version_label: safeLabel,
               is_latest: true,
               origin_type: "tailored",
               parent_version_id: parentVersionId,
               application_id: application.id,
-              content: baseContent ? { ...baseContent, markdown: parsed.resume_markdown } : { markdown: parsed.resume_markdown },
-              pdf_url: pdfUrl,
+              content: versionContent,
+              pdf_url: safePdfUrl,
               template_id: "modern"
             })
             .select("id")
             .single();
+
+          if (insertVerErr) {
+            console.error("[ResumeAgent] resume_versions insert error:", insertVerErr);
+          }
           verRow = newVer;
         }
 
-        if (verRow?.id) {
-          await (supabase as any)
-            .from("applications")
-            .update({ resume_version_id: verRow.id })
-            .eq("id", application.id);
-        }
+        // Always update the application with the new resume version, ATS score, and matched skills!
+        await (supabase as any)
+          .from("applications")
+          .update({
+            ...(verRow?.id ? { resume_version_id: verRow.id } : {}),
+            fit_score: parsed.ats_score,
+            matched_skills: parsed.skills_matched ?? [],
+            missing_skills: parsed.skills_missing ?? [],
+          })
+          .eq("id", application.id);
+
+        console.log(`[ResumeAgent] Application ${application.id} updated with resume_version_id: ${verRow?.id || 'none'} and fit_score: ${parsed.ats_score}`);
       } catch (verErr) {
         console.warn("[ResumeAgent] resume_versions insert warning:", verErr);
       }
@@ -441,6 +477,27 @@ Format the resume_markdown to match this exact shape:
         await generateInterviewPrep(application.id);
       } catch (prepErr) {
         console.warn("[ResumeAgent] generateInterviewPrep warning:", prepErr);
+      }
+
+      // Auto-trigger 15-question interview Q&A bank
+      try {
+        const { generateQABank } = await import("@/lib/actions/phase3");
+        await generateQABank(application.id);
+      } catch (qaErr) {
+        console.warn("[ResumeAgent] generateQABank warning:", qaErr);
+      }
+
+      // Revalidate all caches so that /resumes, /applications, etc. immediately reflect the new tailored resume!
+      try {
+        const { revalidatePath } = await import("next/cache");
+        revalidatePath("/resumes");
+        revalidatePath("/applications");
+        revalidatePath(`/applications/${application.id}`);
+        revalidatePath(`/applications/${application.id}/resume`);
+        revalidatePath(`/applications/${application.id}/builder`);
+        revalidatePath("/dashboard");
+      } catch (revErr) {
+        // Ignored if called in non-Next lifecycle
       }
 
       console.log(`[ResumeAgent] Successfully generated and saved tailored resume.`);

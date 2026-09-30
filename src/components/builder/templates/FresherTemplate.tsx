@@ -1,5 +1,6 @@
 import React from "react";
 import { BuilderResumeData } from "@/types/resume-builder";
+import { categorizeSkills } from "@/lib/resume/skills-categorizer";
 
 interface TemplateProps {
   data: BuilderResumeData;
@@ -29,7 +30,9 @@ export default function FresherTemplate({ data }: TemplateProps) {
 
   // Build contact line items
   const contactParts: string[] = [];
-  if (contact.location) contactParts.push(contact.location);
+  if (contact.location && !contact.location.toLowerCase().includes("remote")) {
+    contactParts.push(contact.location);
+  }
   if (contact.phone) contactParts.push(contact.phone);
   if (contact.email) contactParts.push(contact.email);
   if (contact.linkedin) {
@@ -41,6 +44,8 @@ export default function FresherTemplate({ data }: TemplateProps) {
     const cleanWeb = webLink.replace(/^https?:\/\/(www\.)?/, "");
     contactParts.push(cleanWeb);
   }
+
+  const displayedSkills = categorizeSkills(skills);
 
   return (
     <div
@@ -116,7 +121,7 @@ export default function FresherTemplate({ data }: TemplateProps) {
       )}
 
       {/* TECHNICAL SKILLS */}
-      {skills.length > 0 && (
+      {displayedSkills.length > 0 && (
         <section className="mb-[14pt]">
           <h2
             className="font-bold text-slate-950 uppercase tracking-wide border-b border-slate-900 pb-[1pt] mb-[6pt]"
@@ -125,7 +130,7 @@ export default function FresherTemplate({ data }: TemplateProps) {
             TECHNICAL SKILLS
           </h2>
           <ul className="space-y-[3pt] text-slate-800" style={{ fontSize: "10.5pt" }}>
-            {skills.map((skill) => (
+            {displayedSkills.map((skill) => (
               <li key={skill.id || skill.category} className="flex items-start">
                 <span className="mr-2 select-none">•</span>
                 <span>

@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { generateContentWithRetry } from "@/lib/gemini";
 import { QABank, QABankQuestion } from "@/types/resume-matching";
 
 export async function generateQABankForRole(
@@ -70,8 +71,8 @@ Return ONLY raw JSON with no Markdown wrappers matching this structure:
 }
 `;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+  const response = await generateContentWithRetry({
+    ai,
     contents: prompt,
     config: {
       responseMimeType: "application/json",

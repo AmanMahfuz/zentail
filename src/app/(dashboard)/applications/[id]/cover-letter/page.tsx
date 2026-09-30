@@ -27,8 +27,7 @@ export default async function CoverLetterCenterPage({
     .eq("application_id", applicationId)
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
+    .maybeSingle();
 
   let letter: any = letterRaw ?? null;
 

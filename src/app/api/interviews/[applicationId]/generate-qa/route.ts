@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
+import { generateContentWithRetry } from '@/lib/gemini';
 
 export async function POST(
   req: NextRequest,
@@ -50,7 +51,40 @@ export async function POST(
       );
     }
 
-    // 3. Generate questions using Gemini with resilient fallback
+    // 3. Fetch candidate's career evidence to ground interview questions
+    const { data: evidenceProjects } = await (supabase as any)
+      .from('evidence_projects')
+      .select('title, description, tech_stack')
+      .eq('user_id', user.id);
+
+    const { data: evidenceExp } = await (supabase as any)
+      .from('evidence_experience')
+      .select('job_title, company, description, skills_used')
+      .eq('user_id', user.id);
+
+    const { data: resumeVersion } = application.resume_version_id
+      ? await (supabase as any).from('resume_versions').select('content').eq('id', application.resume_version_id).maybeSingle()
+      : { data: null };
+
+    const rContent = (resumeVersion?.content || {}) as any;
+    const candidateProjects = (evidenceProjects && evidenceProjects.length > 0)
+      ? evidenceProjects
+      : (rContent.projects || []).map((p: any) => ({
+          title: p.name || p.title,
+          description: p.description,
+          tech_stack: Array.isArray(p.techStack) ? p.techStack : (p.tech ? [p.tech] : [])
+        }));
+
+    const candidateExp = (evidenceExp && evidenceExp.length > 0)
+      ? evidenceExp
+      : (rContent.experience || []).map((e: any) => ({
+          job_title: e.title || e.jobTitle,
+          company: e.company,
+          description: e.description,
+          skills_used: e.skillsUsed || []
+        }));
+
+    // 4. Generate questions using Gemini with resilient fallback
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
     const jobDescription = application.job_description || application.job_title;
     const companyName = application.company_name;
@@ -59,49 +93,53 @@ export async function POST(
 
     if (apiKey) {
       try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        const ai = new GoogleGenAI({ apiKey });
 
-        const prompt = `You are an expert technical interviewer. Generate interview questions for this job:
+        const prompt = `You are an expert technical interviewer and hiring manager. Generate realistic interview questions tailored for this role and candidate:
 
 POSITION: ${application.job_title}
 COMPANY: ${companyName}
 JOB DESCRIPTION: ${jobDescription}
 
-Generate 15 realistic interview questions tailored specifically for this role. Include a mix of:
-- 4-5 Behavioral questions (past experience, leadership, conflict, teamwork)
-- 4-5 Technical questions (specific to the role, tools, frameworks, and architecture)
-- 3 Situational questions (hypothetical on-the-job challenges and problem-solving)
-- 2-3 Cultural fit & motivation questions (company mission, growth, values)
+CANDIDATE EVIDENCE:
+Projects:
+${JSON.stringify(candidateProjects, null, 2)}
 
-For EVERY question, provide practical guidance on how to answer it effectively.
+Experience:
+${JSON.stringify(candidateExp, null, 2)}
 
-Return ONLY a valid JSON array (no markdown code blocks, no explanation text):
+CRITICAL SYSTEM RULES:
+1. Ground technical questions in the candidate's verified projects (e.g. asking how they implemented specific features with their tech stack).
+2. Ground behavioral questions in real engineering scenarios relevant to their projects and background.
+3. For sample answers, reference their actual projects and technologies rather than generic textbook responses.
+4. Generate 12-15 questions covering:
+   - 4 Technical Architecture & Coding questions
+   - 4 Behavioral / Project-deep-dive questions
+   - 3 Situational & Problem-solving questions
+   - 2 Culture & Role alignment questions
+
+Return ONLY a valid JSON array:
 [
   {
     "id": "q-1",
     "question": "The actual interview question",
     "category": "behavioral|technical|situational|cultural",
     "difficulty": "easy|medium|hard",
-    "howToAnswer": "Actionable advice on how to structure the answer (e.g., STAR method, key technical trade-offs to highlight)",
-    "sampleAnswer": "A strong, high-scoring sample response illustrating what great looks like",
+    "groundedEvidence": "Name of project or experience this question tests (e.g. Interactive Web Application)",
+    "howToAnswer": "Actionable advice on how to structure the answer (e.g., STAR method, key trade-offs to highlight)",
+    "sampleAnswer": "A strong, evidence-grounded sample response referencing the candidate's actual project",
     "followUp": "Optional follow-up question to probe deeper",
-    "keywords": ["keyword1", "keyword2", "keyword3"],
+    "keywords": ["keyword1", "keyword2"],
     "expectedKeywords": ["most important keyword"]
   }
-]
+]`;
 
-IMPORTANT:
-- Return ONLY the JSON array, no code blocks, no explanation
-- Each question should be specific to the role, not generic
-- Include keywords that would indicate a strong answer
-- Vary difficulty levels (not all hard, not all easy)
-- Follow-up questions should probe deeper into initial answer
-- Make questions realistic for actual interviews at this company
-- Keep howToAnswer concise (1-2 sentences) and sampleAnswer crisp (2-3 sentences) for maximum clarity and fast generation`;
+        const response = await generateContentWithRetry({
+          ai,
+          contents: prompt,
+        });
 
-        const response = await model.generateContent(prompt);
-        const responseText = response.response.text();
+        const responseText = (response as any).text || '';
 
         try {
           questions = JSON.parse(responseText);

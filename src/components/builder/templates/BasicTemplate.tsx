@@ -1,6 +1,7 @@
 import React from "react";
 import { BuilderResumeData } from "@/types/resume-builder";
 import { Mail, Phone, MapPin, Globe } from "lucide-react";
+import { categorizeSkills } from "@/lib/resume/skills-categorizer";
 
 function LinkedinIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -80,6 +81,7 @@ export default function BasicTemplate({ data }: TemplateProps) {
   };
 
   const density = getDensity();
+  const displayedSkills = categorizeSkills(skills);
 
   return (
     <div
@@ -116,7 +118,7 @@ export default function BasicTemplate({ data }: TemplateProps) {
               {contact.phone}
             </span>
           )}
-          {contact.location && (
+          {contact.location && !contact.location.toLowerCase().includes("remote") && (
             <span className="flex items-center gap-1">
               <MapPin className="w-3 h-3 text-slate-400" />
               {contact.location}
@@ -178,7 +180,7 @@ export default function BasicTemplate({ data }: TemplateProps) {
                     {exp.startDate} – {exp.current ? "Present" : exp.endDate || "Present"}
                   </span>
                 </div>
-                {exp.description && (
+                {(!exp.bullets || exp.bullets.filter(Boolean).length === 0) && exp.description && (
                   <p className="text-slate-600 text-[10.5px] mt-0.5">{exp.description}</p>
                 )}
                 {exp.bullets && exp.bullets.filter(Boolean).length > 0 && (
@@ -224,7 +226,7 @@ export default function BasicTemplate({ data }: TemplateProps) {
       )}
 
       {/* ── Skills ─────────────────────────────────────────────── */}
-      {skills.some((s) => s.items.trim()) && (
+      {displayedSkills.some((s) => s.items.trim()) && (
         <section style={{ marginBottom: density.sectionGap }}>
           <h2
             className="text-[11px] font-bold uppercase tracking-wider pb-0.5 mb-1.5 border-b"
@@ -233,7 +235,7 @@ export default function BasicTemplate({ data }: TemplateProps) {
             Technical & Professional Skills
           </h2>
           <div className="space-y-1">
-            {skills.filter((s) => s.items.trim()).map((s, idx) => (
+            {displayedSkills.filter((s) => s.items.trim()).map((s, idx) => (
               <div key={idx} className="text-[10.5px]">
                 <span className="font-semibold text-slate-900">{s.category}: </span>
                 <span className="text-slate-700">{s.items}</span>

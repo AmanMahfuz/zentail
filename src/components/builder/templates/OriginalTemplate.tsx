@@ -10,6 +10,7 @@ import {
   LanguageItem,
 } from "@/types/resume-builder";
 import { Mail, Phone, MapPin, Globe, ExternalLink } from "lucide-react";
+import { categorizeSkills } from "@/lib/resume/skills-categorizer";
 
 function LinkedinIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -44,6 +45,8 @@ export default function OriginalTemplate({ data }: TemplateProps) {
     achievements = [],
     theme = {} as any,
   } = data;
+
+  const displayedSkills = categorizeSkills(skills);
 
   const primaryColor = theme.primaryColor || "#0f172a";
   const accentColor = theme.accentColor || primaryColor;
@@ -139,7 +142,7 @@ export default function OriginalTemplate({ data }: TemplateProps) {
   };
 
   const renderSkills = () => {
-    const validSkills = skills.filter((s) => s.items && s.items.trim());
+    const validSkills = displayedSkills.filter((s) => s.items && s.items.trim());
     if (validSkills.length === 0) return null;
     return (
       <section style={{ marginBottom: density.sectionGap }}>
@@ -366,7 +369,7 @@ export default function OriginalTemplate({ data }: TemplateProps) {
           <div className="text-right text-[10.5px] space-y-0.5 text-slate-600 shrink-0">
             {contact.email && <div>{contact.email}</div>}
             {contact.phone && <div>{contact.phone}</div>}
-            {contact.location && <div>{contact.location}</div>}
+            {contact.location && !contact.location.toLowerCase().includes("remote") && <div>{contact.location}</div>}
             {contact.linkedin && <div>{contact.linkedin.replace(/^https?:\/\/(www\.)?/, "")}</div>}
             {contact.github && <div>{contact.github.replace(/^https?:\/\/(www\.)?/, "")}</div>}
           </div>
@@ -394,7 +397,7 @@ export default function OriginalTemplate({ data }: TemplateProps) {
                 {contact.phone}
               </span>
             )}
-            {contact.location && (
+            {contact.location && !contact.location.toLowerCase().includes("remote") && (
               <span className="inline-flex items-center gap-1">
                 <MapPin className="w-3 h-3 text-slate-400" />
                 {contact.location}
@@ -448,7 +451,7 @@ export default function OriginalTemplate({ data }: TemplateProps) {
                 {contact.phone}
               </span>
             )}
-            {contact.location && (
+            {contact.location && !contact.location.toLowerCase().includes("remote") && (
               <span className="inline-flex items-center gap-1">
                 <MapPin className="w-3 h-3 text-slate-400" />
                 {contact.location}

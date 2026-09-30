@@ -110,7 +110,8 @@ function SortableAppCard({
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const colorClass = AVATAR_COLORS[app.job.company.length % AVATAR_COLORS.length];
+  const safeCompany = app.job?.company || "Target Company";
+  const colorClass = AVATAR_COLORS[safeCompany.length % AVATAR_COLORS.length];
 
   const daysSinceApplied = app.applied_at
     ? Math.floor((Date.now() - new Date(app.applied_at).getTime()) / (1000 * 3600 * 24))
@@ -159,13 +160,13 @@ function SortableAppCard({
       <div className="px-4 pt-4 pb-1 flex-1">
         <div className="flex items-start gap-3.5 mb-2">
           <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 font-bold text-lg tracking-wide bg-[#E8F8F0] text-[#008B5C]">
-            {app.job.company.charAt(0).toUpperCase()}
+            {safeCompany.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0 pt-0.5">
             <h4 className="font-bold text-slate-900 text-[13px] tracking-wide uppercase truncate transition-colors">
-              {app.job.title}
+              {app.job?.title || "Target Role"}
             </h4>
-            <p className="text-[14px] text-slate-500 truncate mt-0.5 font-medium">{app.job.company}</p>
+            <p className="text-[14px] text-slate-500 truncate mt-0.5 font-medium">{safeCompany}</p>
           </div>
         </div>
 

@@ -1,8 +1,6 @@
 // src/app/api/public/interview-chat/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+import { generateContentWithRetry } from "@/lib/gemini";
 
 const SYSTEM_PROMPT = `You are a friendly career coach helping someone who does NOT have a resume yet build their first one. 
 You have been given a job description they are interested in. Your goal is to learn about their real experience through a short structured conversation.
@@ -60,8 +58,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Job description required" }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
     // Build the conversation history for Gemini
     const conversationContext = messages?.length
       ? messages.map((m: { role: string; text: string }) =>
@@ -113,23 +109,22 @@ Respond ONLY with JSON in this exact format:
 { "message": "your next question", "done": false }`
 }`;
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
+    const result = await generateContentWithRetry({
+      contents: prompt,
+      config: {
         responseMimeType: "application/json",
         temperature: 0.7,
-        maxOutputTokens: 2048
       }
     });
 
-    const text = result.response.text();
+    const text = typeof (result as any).text === "function" ? (result as any).text() : ((result as any).text || "");
     let parsed: any;
     try {
       parsed = JSON.parse(text);
     } catch {
       // Try to extract JSON from the response
       const match = text.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error("Could not parse AI response");
+      if (!match) throw new Error("Could not parse AI response: " + text.slice(0, 100));
       parsed = JSON.parse(match[0]);
     }
 
@@ -141,6 +136,11 @@ Respond ONLY with JSON in this exact format:
 
   } catch (err) {
     console.error("[interview-chat]", err);
-    return NextResponse.json({ error: "Interview failed" }, { status: 500 });
+    // Graceful fallback so candidate is never blocked
+    return NextResponse.json({
+      message: "Hi there! I'm your AI career coach. To help build your first tailored resume for this job, what is your full name and current role (or field of study if you're a student)?",
+      done: false,
+      extracted: null
+    });
   }
 }

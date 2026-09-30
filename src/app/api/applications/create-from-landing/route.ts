@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { GoogleGenAI, Type } from "@google/genai";
+import { generateContentWithRetry } from "@/lib/gemini";
+import { categorizeSkills, classifySkillName } from "@/lib/resume/skills-categorizer";
 import { generateInterviewPrep } from "@/lib/actions/phase3";
 import { getCachedAIResult, setCachedAIResult, CACHE_TTL_DAYS } from "@/lib/cache";
 
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
       full_name: profile.personal?.fullName || user.user_metadata?.full_name || "Candidate",
       email: profile.personal?.email || user.email,
       phone: profile.personal?.phone || null,
-      location: profile.personal?.location || null,
+      location: (profile.personal?.location && !profile.personal.location.toLowerCase().includes("remote")) ? profile.personal.location : null,
       linkedin_url: profile.personal?.linkedinUrl || null,
       github_url: profile.personal?.githubUrl || null,
       portfolio_url: profile.personal?.portfolioUrl || null,
@@ -54,13 +56,18 @@ export async function POST(request: NextRequest) {
     // 2. Upsert Skills
     if (profile.skills && Array.isArray(profile.skills) && profile.skills.length > 0) {
       await (supabase as any).from("evidence_skills").upsert(
-        profile.skills.map((s: any) => ({
-          user_id: user.id,
-          skill_name: typeof s === "string" ? s : s.name,
-          category: typeof s === "object" ? s.category || "core" : "core",
-          proficiency: typeof s === "object" ? s.proficiency || "intermediate" : "intermediate",
-          proof_status: "self_reported"
-        })),
+        profile.skills.map((s: any) => {
+          const sName = typeof s === "string" ? s : s.name;
+          const userCat = typeof s === "object" ? s.category : "";
+          const finalCat = (userCat && userCat.toLowerCase() !== "core") ? userCat : classifySkillName(sName);
+          return {
+            user_id: user.id,
+            skill_name: sName,
+            category: finalCat,
+            proficiency: typeof s === "object" ? s.proficiency || "intermediate" : "intermediate",
+            proof_status: "self_reported"
+          };
+        }),
         { onConflict: "user_id,skill_name" }
       );
     }
@@ -172,8 +179,8 @@ export async function POST(request: NextRequest) {
           Estimate the match percentage (0-100).
         `;
 
-        const scanRes = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+        const scanRes = await generateContentWithRetry({
+          ai,
           contents: scanPrompt,
           config: {
             temperature: 0.1,
@@ -190,7 +197,7 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        const scanParsed = JSON.parse(scanRes.text || "{}");
+        const scanParsed = JSON.parse((scanRes as any).text || "{}");
         if (scanParsed.selected_id && scanParsed.selected_id !== "current") {
           const found = existingVersions.find((v: any) => v.id === scanParsed.selected_id);
           if (found && found.content) {
@@ -207,9 +214,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if the candidate's existing resume already qualifies for the interview
-    // Standard ATS interview qualification threshold is 80%+.
-    // If the candidate's uploaded or existing resume already scores >= 80%,
-    // WE DO NOT NEED TO TAILOR A RESUME (as requested by user)
     const INTERVIEW_QUALIFIED_THRESHOLD = 80;
     const effectiveMatchScore = Math.max(fitScore, scanMatchPct);
     const isInterviewQualified = effectiveMatchScore >= INTERVIEW_QUALIFIED_THRESHOLD;
@@ -217,9 +221,19 @@ export async function POST(request: NextRequest) {
     let targetResumeVersionId = baseVersion?.id || null;
     let tailoredVersion: any = null;
 
+    // Determine if candidate is fresher/student
+    const hasMeaningfulExperience = Array.isArray(profile.experience) && profile.experience.some((e: any) => (e.title || e.jobTitle) && (e.company || e.description));
+    const isFresher = !hasMeaningfulExperience || profile.candidateType === "fresher" || (profile.currentRole && /student|fresher|aspiring/i.test(profile.currentRole));
+
+    // Clean location from placeholder "Remote"
+    const cleanedPersonal = { ...(profile.personal || {}) };
+    if (cleanedPersonal.location && /remote/i.test(cleanedPersonal.location)) {
+      cleanedPersonal.location = "";
+    }
+
     if (!isInterviewQualified) {
-      // 5. Generate Tailored Resume with Gemini only when score is below interview cutoff (< 80%)
-      let tailoredContent = { ...profile };
+      // 5. Generate Tailored Resume grounded strictly in candidate evidence
+      let tailoredContent = { ...profile, personal: cleanedPersonal };
       const tailorCacheInput = { profile, jobTitle, companyName, jobDescription, scanStrategy };
       const cachedTailor = await getCachedAIResult<any>("resume_tailor", tailorCacheInput, {
         tokensToAdd: 2000,
@@ -231,36 +245,86 @@ export async function POST(request: NextRequest) {
         try {
           const ai = new GoogleGenAI({ apiKey });
           const tailorPrompt = `
-            You are an expert executive resume writer. Tailor this candidate's profile to align honestly with the target job description.
-            Emphasize real overlapping skills, sharpen bullet points with metrics, and align the professional summary to this role.
-            Do NOT invent false experience.
+            You are an expert executive resume writer and ATS strategist.
+            Generate an evidence-grounded, professional resume tailored for the target role: "${jobTitle}" at "${companyName}".
 
-            Tailoring Strategy: ${scanStrategy}
-            Baseline Match: ${scanMatchPct}%
-            ${scanStrategy === "minor_alterations" ? "NOTE: This resume is already an 80%+ match to the JD. Make targeted, minor alterations to keywords and metrics rather than wholesale changes." : ""}
+            CRITICAL SYSTEM RULES:
+            1. EVIDENCE GROUNDING: You can improve phrasing, technical clarity, and bullet structure, but you CANNOT manufacture companies, degrees, metrics, or technologies not present in the candidate's background.
+            2. FRESHER VS EXPERIENCED ARCHITECTURE:
+               Candidate is ${isFresher ? "a Fresher / Student" : "an Experienced Candidate"}.
+               ${isFresher ? `
+               - Prioritize KEY PROJECTS and EDUCATION.
+               - If experience is empty or just trivial notes, omit or minimize experience and give deep, multi-bullet technical substance to the Projects (What was built, technical implementation/architecture, outcome/live status).
+               - Do NOT output empty or duplicated experience sections.
+               ` : `
+               - Focus on WORK EXPERIENCE achievements with strong action verbs and outcomes.
+               - Highlight key production projects and technical contributions.
+               `}
+            3. SKILLS CATEGORIZATION:
+               Organize skills into clean industry categories (e.g. Languages, Frameworks & Libraries, Backend & APIs, Databases, Developer Tools & Cloud).
+               NEVER use internal labels like "core" or "general".
+            4. PROFESSIONAL SUMMARY:
+               Craft a compelling 2–3 line summary that aligns the candidate's real verified skills with "${jobTitle}".
+            5. LOCATION:
+               If location is "Remote" or unspecified, leave location blank. Do not invent an address.
 
-            Candidate Profile:
-            ${JSON.stringify(profile, null, 2)}
+            Candidate Evidence:
+            ${JSON.stringify({ ...profile, personal: cleanedPersonal }, null, 2)}
 
-            Target Job:
+            Target Job Description:
             Title: ${jobTitle}
             Company: ${companyName}
             Description: ${jobDescription.slice(0, 4000)}
 
-            Return JSON only:
+            Return JSON ONLY with this shape:
             {
-              "personal": ${JSON.stringify(profile.personal)},
-              "summary": "Tailored 2-3 sentence executive summary aligning the candidate's real strengths with ${jobTitle}",
-              "skills": ${JSON.stringify(profile.skills || [])},
-              "experience": ${JSON.stringify(profile.experience || [])},
-              "projects": ${JSON.stringify(profile.projects || [])},
+              "personal": {
+                "fullName": "${cleanedPersonal.fullName || 'Candidate'}",
+                "jobTitle": "${jobTitle}",
+                "email": "${cleanedPersonal.email || ''}",
+                "phone": "${cleanedPersonal.phone || ''}",
+                "location": "${cleanedPersonal.location || ''}",
+                "linkedinUrl": "${cleanedPersonal.linkedinUrl || ''}",
+                "githubUrl": "${cleanedPersonal.githubUrl || ''}",
+                "portfolioUrl": "${cleanedPersonal.portfolioUrl || ''}"
+              },
+              "summary": "Compelling 2-3 sentence tailored summary...",
+              "skills": [
+                { "category": "Languages", "items": "JavaScript, TypeScript..." },
+                { "category": "Frameworks & Libraries", "items": "React, Next.js..." },
+                { "category": "Backend & APIs", "items": "Node.js, REST APIs..." },
+                { "category": "Databases", "items": "PostgreSQL, Supabase..." },
+                { "category": "Developer Tools & Cloud", "items": "Git, Docker..." }
+              ],
+              "projects": [
+                {
+                  "title": "Project Title",
+                  "techStack": ["React", "TypeScript"],
+                  "githubUrl": "url or null",
+                  "liveUrl": "url or null",
+                  "bullets": [
+                    "Engineered...",
+                    "Implemented...",
+                    "Deployed..."
+                  ]
+                }
+              ],
+              "experience": ${isFresher ? "[]" : `[
+                {
+                  "jobTitle": "Role",
+                  "company": "Company",
+                  "startDate": "Date",
+                  "endDate": "Date",
+                  "bullets": ["Accomplished..."]
+                }
+              ]`},
               "education": ${JSON.stringify(profile.education || [])},
               "certifications": ${JSON.stringify(profile.certifications || [])}
             }
           `;
 
-          const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+          const response = await generateContentWithRetry({
+            ai,
             contents: tailorPrompt,
             config: {
               temperature: 0.2,
@@ -268,17 +332,16 @@ export async function POST(request: NextRequest) {
             }
           });
 
-          let text = response.text || "";
-          const jsonStart = text.indexOf("{");
-          const jsonEnd = text.lastIndexOf("}");
+          const rawText = (response as any).text || "";
+          const jsonStart = rawText.indexOf("{");
+          const jsonEnd = rawText.lastIndexOf("}");
           if (jsonStart !== -1 && jsonEnd !== -1) {
-            text = text.slice(jsonStart, jsonEnd + 1);
-            tailoredContent = JSON.parse(text);
-            // Store in AI Cache
+            tailoredContent = JSON.parse(rawText.slice(jsonStart, jsonEnd + 1));
+            // Cache result
             await setCachedAIResult("resume_tailor", tailorCacheInput, tailoredContent, {
               ttlDays: CACHE_TTL_DAYS.RESUME_TAILOR,
               tokens: 2000,
-              model: "gemini-2.5-flash",
+              model: "gemini-3.8-flash",
             });
           }
         } catch (tailorErr) {
@@ -324,7 +387,7 @@ export async function POST(request: NextRequest) {
             origin_type: "tailored",
             parent_version_id: baseVersion?.id || null,
             content: tailoredContent,
-            template_id: "modern"
+            template_id: isFresher ? "fresher" : "balanced"
           })
           .select()
           .single();
@@ -455,6 +518,14 @@ export async function POST(request: NextRequest) {
       await generateInterviewPrep(application.id);
     } catch (prepErr) {
       console.error("Interview prep auto-generation error:", prepErr);
+    }
+
+    // 10. Automatically generate 15-question interview Q&A bank
+    try {
+      const { generateQABank } = await import("@/lib/actions/phase3");
+      await generateQABank(application.id);
+    } catch (qaErr) {
+      console.error("Interview Q&A bank auto-generation error:", qaErr);
     }
 
     return NextResponse.json({

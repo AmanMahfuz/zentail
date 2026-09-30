@@ -20,7 +20,7 @@ export function ResumeCanvas({ activeResume }: { activeResume: any }) {
       <div className="flex justify-between items-end border-b-2 border-slate-300 pb-4 mb-6">
         <div>
           <h1 className="text-4xl font-bold tracking-tight text-slate-900 uppercase">
-            {contact.name || "Aman Mahfuz KZ"}
+            {contact.name || "Candidate"}
           </h1>
           <h2 className="text-base font-semibold text-blue-600 mt-1">
             {contact.title || "Full-Stack Developer"}

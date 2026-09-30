@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,7 +9,14 @@ import { Plus, X } from "lucide-react";
 import { createApplication } from "@/lib/actions/applications";
 import { extractJobDetails } from "@/lib/actions/ai-matching";
 
-export function AddApplicationModal({ triggerClassName }: { triggerClassName?: string }) {
+export function AddApplicationModal({
+  triggerClassName,
+  onSuccess,
+}: {
+  triggerClassName?: string;
+  onSuccess?: () => void;
+}) {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +69,10 @@ export function AddApplicationModal({ triggerClassName }: { triggerClassName?: s
     if (result.success) {
       setIsOpen(false);
       resetForm();
+      if (onSuccess) {
+        onSuccess();
+      }
+      router.refresh();
     } else {
       setError(result.message || "Failed to create application.");
     }

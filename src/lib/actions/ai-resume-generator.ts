@@ -1,11 +1,12 @@
 "use server";
 
 import { GoogleGenAI, Type } from "@google/genai";
+import { generateContentWithRetry } from "@/lib/gemini";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
 export async function generateMasterResume(
-  rawText: string
+  input: string | Record<string, any>
 ): Promise<{ success: boolean; message?: string; resumeId?: string }> {
   try {
     const supabase = await createClient();
@@ -21,6 +22,8 @@ export async function generateMasterResume(
     }
 
     const ai = new GoogleGenAI({ apiKey });
+
+    const rawText = typeof input === "string" ? input : JSON.stringify(input, null, 2);
 
     const prompt = `
 You are an expert ATS resume writer and parser. 
@@ -68,8 +71,8 @@ ${rawText}
 ----------------------------------
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await generateContentWithRetry({
+      ai,
       contents: prompt,
       config: {
         temperature: 0.1,

@@ -1,6 +1,7 @@
 "use server";
 
 import { GoogleGenAI, Type } from "@google/genai";
+import { generateContentWithRetry } from "@/lib/gemini";
 import { createClient } from "@/lib/supabase/server";
 import { extractText } from "unpdf";
 import { Cache } from "@/lib/cache";
@@ -119,8 +120,8 @@ ${resumeText}
 ------------------------
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await generateContentWithRetry({
+      ai,
       contents: prompt,
       config: {
         temperature: 0,
@@ -240,8 +241,8 @@ ${textToAnalyze.slice(0, 15000)} // Limiting to prevent token limits on large we
 -----------------------
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await generateContentWithRetry({
+      ai,
       contents: prompt,
       config: {
         temperature: 0.1,

@@ -9,7 +9,7 @@ export async function analyzeFit(
   resumeVersionId?: string
 ) {
   const supabase = await createClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
 
   // Get latest resume (or specific version)
   let resumeQuery = (supabase as any)

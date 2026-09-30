@@ -34,75 +34,32 @@ export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Allow static assets, api routes, etc. handled by matcher
-  
+  const isLandingRoute = pathname === '/' || pathname === ''
+  const isAuthRoute = pathname.startsWith('/signin') || pathname.startsWith('/signup')
+  const isProtectedRoute = pathname.startsWith('/dashboard') || 
+                           pathname.startsWith('/applications') ||
+                           pathname.startsWith('/onboarding') ||
+                           pathname.startsWith('/resumes') ||
+                           pathname.startsWith('/interviews') ||
+                           pathname.startsWith('/jobs') ||
+                           pathname.startsWith('/settings') ||
+                           pathname.startsWith('/profile') ||
+                           pathname.startsWith('/network') ||
+                           pathname.startsWith('/skills') ||
+                           pathname.startsWith('/analytics') ||
+                           pathname.startsWith('/billing') ||
+                           pathname.startsWith('/linkedin')
+
   if (!user) {
-    // If not logged in, only allow public/auth routes
-    const isProtectedRoute = pathname.startsWith('/dashboard') || 
-                             pathname.startsWith('/onboarding') ||
-                             pathname.startsWith('/applications')
+    // If not logged in, redirect to signin for protected routes
     if (isProtectedRoute) {
       const url = request.nextUrl.clone()
       url.pathname = '/signin'
       return NextResponse.redirect(url)
     }
   } else {
-    // User is logged in
-    // Fetch profile to check onboarding status
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('onboarding_completed')
-      .eq('id', user.id)
-      .single()
-
-    let isOnboarded = profile?.onboarding_completed === true
-
-    // Self-healing: if not marked onboarded, check if user has existing resumes or applications
-    if (!isOnboarded) {
-      const { count: resumeCount } = await supabase
-        .from('resume_versions')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-
-      if (resumeCount && resumeCount > 0) {
-        isOnboarded = true
-        await supabase
-          .from('profiles')
-          .upsert({ id: user.id, onboarding_completed: true, onboarding_completed_at: new Date().toISOString() }, { onConflict: 'id' })
-      } else {
-        const { count: appCount } = await supabase
-          .from('applications')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-
-        if (appCount && appCount > 0) {
-          isOnboarded = true
-          await supabase
-            .from('profiles')
-            .upsert({ id: user.id, onboarding_completed: true, onboarding_completed_at: new Date().toISOString() }, { onConflict: 'id' })
-        }
-      }
-    }
-
-    const isAuthRoute = pathname.startsWith('/signin') || pathname.startsWith('/signup')
-    const isDashboardRoute = pathname.startsWith('/dashboard') || pathname.startsWith('/applications')
-    const isOnboardingRoute = pathname.startsWith('/onboarding')
-
-    if (isAuthRoute) {
-      // Logged in users shouldn't see auth pages
-      const url = request.nextUrl.clone()
-      url.pathname = isOnboarded ? '/dashboard' : '/onboarding'
-      return NextResponse.redirect(url)
-    }
-
-    if (!isOnboarded && isDashboardRoute) {
-      // Must onboard first
-      const url = request.nextUrl.clone()
-      url.pathname = '/onboarding'
-      return NextResponse.redirect(url)
-    }
-
-    if (isOnboarded && isOnboardingRoute) {
-      // Already onboarded
+    // User is logged in — don't show landing page or auth screens, go directly to dashboard
+    if (isLandingRoute || isAuthRoute) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)
@@ -111,6 +68,8 @@ export default async function proxy(request: NextRequest) {
 
   return supabaseResponse
 }
+
+export { proxy }
 
 export const config = {
   matcher: [
