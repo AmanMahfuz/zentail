@@ -25,7 +25,7 @@ export default async function InterviewPreparePage({
   // Fetch the application
   const { data: app, error } = await (supabase as any)
     .from("applications")
-    .select("id, job_title, company_name, job_description")
+    .select("id, job_title, company, company_name, job_description")
     .eq("id", applicationId)
     .eq("user_id", user.id)
     .single();
@@ -47,7 +47,7 @@ export default async function InterviewPreparePage({
       application={{
         id: app.id,
         jobTitle: app.job_title,
-        companyName: app.company_name,
+        companyName: app.company || app.company_name || "Target Company",
         jobDescription: app.job_description,
       }}
       initialQaBank={qaBank}

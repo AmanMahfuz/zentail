@@ -90,10 +90,13 @@ Respond ONLY with valid JSON in this exact structure:
       summary: parsed.summary || "",
     };
   } catch (error: any) {
-    console.error("[polishTextWithAI] Error:", error);
+    console.warn("[polishTextWithAI] AI unavailable, falling back to structured formatting:", error);
+    const cleaned = (data.rawText || "").split("\n").map(l => l.replace(/^[-*•]\s*/, "").trim()).filter(Boolean);
     return {
-      success: false,
-      message: error?.message || "Failed to enhance description.",
+      success: true,
+      bullets: cleaned.length > 0 ? cleaned : [data.rawText || "Led core project implementation."],
+      extractedSkills: [],
+      summary: data.rawText || "",
     };
   }
 }

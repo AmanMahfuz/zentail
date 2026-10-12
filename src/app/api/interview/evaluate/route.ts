@@ -50,6 +50,18 @@ export async function POST(request: Request) {
       sessionId = body.sessionId;
     }
 
+    const authHeader = request.headers.get("authorization");
+    const token = authHeader?.replace(/^Bearer\s+/i, "");
+    const { createAuthClient } = await import("@/lib/supabase/server");
+    const supabase = token ? createAuthClient(token) : await createClient();
+    const {
+      data: { user },
+    } = await (token ? supabase.auth.getUser(token) : supabase.auth.getUser());
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const answerContent = textAnswer || "";
 
     if (!answerContent && !audioBase64) {
@@ -57,6 +69,24 @@ export async function POST(request: Request) {
         { error: "Please provide an answer (text or voice) to evaluate." },
         { status: 400 }
       );
+    }
+
+    let session: any = null;
+    if (sessionId && !sessionId.startsWith("temp-")) {
+      const { data: existingSession, error: sessErr } = await (supabase as any)
+        .from("interview_sessions")
+        .select("id, answers")
+        .eq("id", sessionId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (sessErr || !existingSession) {
+        return NextResponse.json(
+          { error: "Session not found or unauthorized" },
+          { status: 404 }
+        );
+      }
+      session = existingSession;
     }
 
     const questionObj =
@@ -74,36 +104,47 @@ export async function POST(request: Request) {
         jobDescription,
       });
 
-    // Optionally save to Supabase if authenticated and sessionId exists
+    // Save to Supabase for the authenticated session
     try {
-      const supabase = await createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      if (session) {
+        const currentAnswers = Array.isArray(session?.answers) ? [...session.answers] : [];
+        const finalIndex = currentAnswers.length;
 
-      if (user && sessionId && !sessionId.startsWith("temp-")) {
-        let finalIndex = 0;
-        const qIdxRaw = contentType.includes("multipart/form-data") 
-          ? (await request.clone().formData().catch(() => null))?.get("questionIndex")
-          : undefined;
-
-        const { count } = await (supabase as any)
-          .from("interview_answers")
-          .select("*", { count: "exact", head: true })
-          .eq("session_id", sessionId);
-
-        if (typeof count === "number" && count > 0) {
-          finalIndex = count;
-        }
-
-        await (supabase as any).from("interview_answers").insert({
-          session_id: sessionId,
-          question_index: finalIndex,
+        const newAnswerItem = {
+          questionId: questionObj.id || `q-${finalIndex + 1}`,
           question: questionObj.question || questionObj.text || "Interview question",
-          answer: answerContent || evaluation.transcript || "Voice response",
-          answer_type: audioBase64 ? "audio" : "text",
+          text: answerContent || evaluation.transcript || "Voice response",
+          transcript: evaluation.transcript,
+          score: evaluation.overall_score || 75,
           scores: evaluation,
-        });
+          feedback: evaluation.priority_fix || "Good response",
+          detailed_scores: evaluation.detailed_scores,
+          what_worked: evaluation.what_worked,
+          priority_fix: evaluation.priority_fix,
+          better_structure: evaluation.better_structure,
+          answer_type: audioBase64 ? "audio" : "text",
+        };
+
+        currentAnswers.push(newAnswerItem);
+
+        await (supabase as any)
+          .from("interview_sessions")
+          .update({ answers: currentAnswers })
+          .eq("id", sessionId)
+          .eq("user_id", user.id);
+
+        try {
+          await (supabase as any).from("interview_answers").insert({
+            session_id: sessionId,
+            question_index: finalIndex,
+            question: questionObj.question || questionObj.text || "Interview question",
+            answer: answerContent || evaluation.transcript || "Voice response",
+            answer_type: audioBase64 ? "audio" : "text",
+            scores: evaluation,
+          });
+        } catch {
+          // ignore backward compat
+        }
       }
     } catch (dbErr) {
       console.warn("Save answer warning:", dbErr);

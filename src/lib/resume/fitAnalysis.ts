@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+import { getGeminiApiKey } from "@/lib/gemini";
 
 export async function analyzeFit(
   userId: string,
@@ -9,7 +8,9 @@ export async function analyzeFit(
   resumeVersionId?: string
 ) {
   const supabase = await createClient();
-  const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
+  const apiKey = getGeminiApiKey() || process.env.GEMINI_API_KEY;
+  const genAI = new GoogleGenerativeAI(apiKey || "");
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   // Get latest resume (or specific version)
   let resumeQuery = (supabase as any)

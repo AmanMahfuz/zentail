@@ -52,44 +52,78 @@ export async function uploadResume(formData: FormData): Promise<{
     console.warn("Storage upload exception:", err);
   }
 
-  // 2. Extract structured content from PDF using Gemini if available
+  // 2. Extract structured content from PDF (using unpdf for local robust extraction + Gemini when available)
   const bytes = await file.arrayBuffer();
+  let rawPdfText = "";
+  try {
+    const { extractText } = await import("unpdf");
+    const pdfRes = await extractText(new Uint8Array(bytes));
+    rawPdfText = Array.isArray(pdfRes.text) ? pdfRes.text.join("\n") : (pdfRes.text || "");
+  } catch (pdfErr) {
+    console.warn("unpdf text extraction notice:", pdfErr);
+  }
+
+  const { parseResume } = await import("@/lib/agents/resume-parser");
+  const parsedStructured = rawPdfText.trim().length > 15
+    ? await parseResume(rawPdfText)
+    : null;
+
   let extractedContent: any = {
     name: resumeName || file.name,
     file_url: pdfUrl,
-    uploaded_at: new Date().toISOString()
+    uploaded_at: new Date().toISOString(),
+    personal: {
+      fullName: parsedStructured?.full_name || user.user_metadata?.full_name || "Candidate",
+      email: parsedStructured?.email || user.email || "",
+      phone: parsedStructured?.phone || "",
+      location: parsedStructured?.location || "",
+      linkedinUrl: parsedStructured?.linkedin || "",
+      githubUrl: parsedStructured?.github || "",
+      portfolioUrl: "",
+    },
+    skills: (parsedStructured?.skills || []).map((s: string) => ({
+      name: s,
+      category: "core",
+      proficiency: "intermediate",
+    })),
+    experience: (parsedStructured?.experiences || []).map((exp: any) => ({
+      jobTitle: exp.title || "Software Engineer",
+      company: exp.company || "Company",
+      startDate: exp.startDate || "",
+      endDate: exp.endDate || "",
+      description: "",
+      bullets: exp.bullets || [],
+    })),
+    education: (parsedStructured?.education || []).map((edu: any) => ({
+      degree: edu.degree || "Degree",
+      institution: edu.school || "University",
+      field: edu.field || "",
+      startYear: 2020,
+      endYear: parseInt(edu.graduationDate) || 2024,
+    })),
+    summary: parsedStructured?.experiences?.length
+      ? `Experienced professional with demonstrated background in ${(parsedStructured.skills || []).slice(0, 4).join(", ")}.`
+      : "",
   };
 
-  if (process.env.GEMINI_API_KEY) {
+  // Sync to master user_resume table so candidate profile is immediately populated
+  if (parsedStructured) {
     try {
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-      const buffer = Buffer.from(bytes);
-      const base64 = buffer.toString("base64");
-      const res = await model.generateContent([
-        {
-          inlineData: {
-            data: base64,
-            mimeType: "application/pdf"
-          }
-        },
-        `Extract ALL information from this resume into JSON only:
-         {
-           "personal": { "fullName": "string", "email": "string", "phone": "string", "location": "string", "linkedinUrl": "string", "githubUrl": "string", "portfolioUrl": "string" },
-           "summary": "string",
-           "skills": [ { "name": "string", "category": "core", "proficiency": "intermediate" } ],
-           "experience": [ { "jobTitle": "string", "company": "string", "startDate": "string", "endDate": "string", "description": "string", "bullets": ["string"] } ],
-           "education": [ { "degree": "string", "institution": "string", "startYear": 2020, "endYear": 2024 } ],
-           "projects": [ { "title": "string", "description": "string" } ]
-         }`
-      ]);
-      const text = res.response.text();
-      const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
-      const parsed = JSON.parse(cleaned);
-      extractedContent = { ...extractedContent, ...parsed };
-    } catch (err) {
-      console.warn("Gemini parsing notice:", err);
+      await (supabase as any).from("user_resume").upsert({
+        user_id: user.id,
+        full_name: parsedStructured.full_name || user.user_metadata?.full_name || "Candidate",
+        email: parsedStructured.email || user.email || "",
+        phone: parsedStructured.phone || null,
+        location: parsedStructured.location || null,
+        linkedin: parsedStructured.linkedin || null,
+        github: parsedStructured.github || null,
+        experiences: parsedStructured.experiences || [],
+        education: parsedStructured.education || [],
+        skills: parsedStructured.skills || [],
+        last_updated: new Date().toISOString(),
+      }, { onConflict: "user_id" });
+    } catch (syncErr) {
+      console.warn("user_resume master profile sync notice:", syncErr);
     }
   }
 

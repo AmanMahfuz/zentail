@@ -12,9 +12,11 @@ import { extractJobDetails } from "@/lib/actions/ai-matching";
 export function AddApplicationModal({
   triggerClassName,
   onSuccess,
+  buttonText,
 }: {
   triggerClassName?: string;
   onSuccess?: () => void;
+  buttonText?: React.ReactNode;
 }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
@@ -72,7 +74,11 @@ export function AddApplicationModal({
       if (onSuccess) {
         onSuccess();
       }
-      router.refresh();
+      if (result.applicationId) {
+        router.push(`/applications/${result.applicationId}`);
+      } else {
+        router.refresh();
+      }
     } else {
       setError(result.message || "Failed to create application.");
     }
@@ -82,7 +88,11 @@ export function AddApplicationModal({
   if (!isOpen) {
     return (
       <button onClick={() => setIsOpen(true)} className={triggerClassName || "inline-flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl shadow-sm h-11 px-6 text-sm font-semibold transition-colors"}>
-        <Plus className="w-5 h-5 mr-2" /> Add Application
+        {buttonText || (
+          <>
+            <Plus className="w-5 h-5 mr-2" /> Add Application
+          </>
+        )}
       </button>
     );
   }
@@ -90,7 +100,11 @@ export function AddApplicationModal({
   return (
     <>
       <button onClick={() => setIsOpen(true)} className={triggerClassName || "inline-flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl shadow-sm h-11 px-6 text-sm font-semibold transition-colors"}>
-        <Plus className="w-5 h-5 mr-2" /> Add Application
+        {buttonText || (
+          <>
+            <Plus className="w-5 h-5 mr-2" /> Add Application
+          </>
+        )}
       </button>
 
       {/* Modal Overlay */}

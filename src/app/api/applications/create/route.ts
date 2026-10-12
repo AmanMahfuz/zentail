@@ -1,44 +1,103 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { generateInterviewPrep } from "@/lib/actions/phase3";
+import { createClient, createAuthClient } from "@/lib/supabase/server";
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.replace(/^Bearer\s+/i, "");
+    const supabase = token ? createAuthClient(token) : await createClient();
+    const { data: { user } } = await (token ? supabase.auth.getUser(token) : supabase.auth.getUser());
     
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await req.json();
-    const jobUrl = body.jobUrl || body.job_link;
+    const jobUrl = body.jobUrl || body.job_link || null;
     const description = body.description || body.jobDescription || body.job_description || "";
-    const company = body.company || body.preComputedAnalysis?.company || "Target Company";
-    const title = body.title || body.preComputedAnalysis?.jobTitle || "Target Role";
+    const company = body.company?.trim() || body.preComputedAnalysis?.company?.trim() || "Company Not Specified";
+    const title = body.title?.trim() || body.jobTitle?.trim() || body.preComputedAnalysis?.jobTitle?.trim() || "Position Not Specified";
     const preComputedAnalysis = body.preComputedAnalysis;
 
-    // Build application record — all job data lives directly on applications
+    // 1. Create or reuse job record in jobs table (P0-D: consistency with createApplication)
+    let jobId: string | null = null;
+    try {
+      const { data: existingJob } = await supabase
+        .from("jobs")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("company", company)
+        .eq("title", title)
+        .eq("url", jobUrl || "")
+        .maybeSingle();
+
+      if (existingJob) {
+        jobId = existingJob.id;
+      } else {
+        const { data: newJob } = await supabase
+          .from("jobs")
+          .insert({
+            user_id: user.id,
+            company,
+            title,
+            url: jobUrl,
+            description: description || null,
+          })
+          .select("id")
+          .single();
+
+        if (newJob) {
+          jobId = newJob.id;
+        }
+      }
+    } catch (jobErr) {
+      console.warn("[/api/applications/create] Job persistence warning:", jobErr);
+    }
+
+    // 2. Build application record
     const appData: any = {
       user_id: user.id,
+      job_id: jobId,
       job_title: title,
+      company: company,
       company_name: company,
-      job_description: description,
+      job_description: description || null,
       job_link: jobUrl,
-      status: "review_needed",
+      status: "analyzing",
       resume_version_id: body.resumeVersionId || body.resume_version_id || null,
     };
 
     if (preComputedAnalysis) {
-      appData.fit_score = preComputedAnalysis.fitScore ?? 70;
-      appData.fit_summary = preComputedAnalysis.whatIsHoldingBack || preComputedAnalysis.verdict;
+      appData.fit_score = typeof preComputedAnalysis.fitScore === "number" ? preComputedAnalysis.fitScore : null;
+      appData.fit_summary = preComputedAnalysis.whatIsHoldingBack || preComputedAnalysis.verdict || null;
       appData.matched_skills = preComputedAnalysis.matched || [];
       appData.partial_skills = preComputedAnalysis.partial || [];
       appData.missing_skills = preComputedAnalysis.missing || [];
       appData.improvements = preComputedAnalysis.improvements || [];
     }
 
-    // Create Application record
+    // 3. Deduplicate application creation from onboarding (prevent duplicate applications on retry or double-click)
+    if (body.fromOnboarding && company && title) {
+      const { data: existingApp } = await (supabase
+        .from("applications")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("company_name", company)
+        .eq("job_title", title)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle() as any);
+
+      if (existingApp) {
+        return NextResponse.json({
+          applicationId: existingApp.id,
+          id: existingApp.id,
+          reused: true,
+        });
+      }
+    }
+
+    // Insert Application record
     const { data: application, error: appError } = await (supabase
       .from("applications")
       .insert(appData as any) as any)
@@ -46,6 +105,22 @@ export async function POST(req: Request) {
       .single();
 
     if (appError) throw appError;
+
+    // Record timeline creation event
+    try {
+      await (supabase as any).from("application_events").insert({
+        application_id: application.id,
+        event_type: "created",
+        status: "analyzing",
+        data: {
+          company,
+          job_title: title,
+          created_at: new Date().toISOString(),
+        },
+      });
+    } catch (evtErr) {
+      console.warn("[/api/applications/create] application_events warning:", evtErr);
+    }
 
     // 4. If preComputedAnalysis is present, insert requirement_map entries
     if (preComputedAnalysis && application) {
@@ -76,42 +151,28 @@ export async function POST(req: Request) {
       });
 
       if (reqEntries.length > 0) {
-        await (supabase as any).from("requirement_map").insert(reqEntries);
-      }
-    }
-
-    // Auto-tailor the resume for this application (scans user collection, selects best base, tailors to JD, links to app, and generates interview prep)
-    try {
-      const { ResumeAgent } = await import("@/lib/agents/resume-agent");
-      const tailorResult = await ResumeAgent.tailorForJob(application.id);
-      if (tailorResult.success) {
-        const { data: updatedApp } = await (supabase as any)
-          .from("applications")
-          .select("resume_version_id, fit_score")
-          .eq("id", application.id)
-          .single();
-        if (updatedApp?.resume_version_id) {
-          application.resume_version_id = updatedApp.resume_version_id;
-          application.fit_score = updatedApp.fit_score ?? application.fit_score;
+        try {
+          await (supabase as any).from("requirement_map").insert(reqEntries);
+        } catch (reqErr) {
+          console.warn("[/api/applications/create] requirement_map insert warning:", reqErr);
         }
       }
-    } catch (tailorErr) {
-      console.warn("Auto-tailoring warning on app creation:", tailorErr);
     }
 
-    // Automatically trigger normal text-based interview question prep if not already done
+    // 5. Enqueue background processing with Inngest (P0-D: unified background pipeline)
     try {
-      await generateInterviewPrep(application.id);
-    } catch (prepErr) {
-      console.warn("Interview prep auto-generation warning:", prepErr);
-    }
-
-    // Automatically generate 15-question interview Q&A bank if not already done
-    try {
-      const { generateQABank } = await import("@/lib/actions/phase3");
-      await generateQABank(application.id);
-    } catch (qaErr) {
-      console.warn("Interview QA bank auto-generation warning:", qaErr);
+      const { data: { session } } = await supabase.auth.getSession();
+      const { inngest } = await import("@/inngest/client");
+      await inngest.send({
+        name: "application/added",
+        data: {
+          application_id: application.id,
+          user_id: user.id,
+          access_token: session?.access_token,
+        },
+      });
+    } catch (err) {
+      console.error("[/api/applications/create] Failed to trigger Inngest application/added event:", err);
     }
 
     try {

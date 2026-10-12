@@ -65,88 +65,20 @@ const DEFAULT_THEME: ResumeTheme = {
 
 const DEFAULT_RESUME: BuilderResumeData = {
   contact: {
-    name: "AMAN MAHFUZ KZ",
-    title: "FULL-STACK SOFTWARE ENGINEER",
-    email: "aman.mahfuz@zentail.dev",
-    phone: "+1 (555) 382-9014",
-    location: "San Francisco, CA (Open to Remote)",
-    linkedin: "https://linkedin.com/in/amanmahfuz",
-    portfolio: "https://amanmahfuz.dev",
-    github: "github.com/amanmahfuz",
+    name: "",
+    title: "",
+    email: "",
+    phone: "",
+    location: "",
+    linkedin: "",
+    portfolio: "",
+    github: "",
   },
-  summary:
-    "Product-focused Full-Stack Engineer with 5+ years of experience designing, architecting, and deploying resilient web applications. Proven track record in optimizing client-side performance, developing scalable microservices, and leading distributed teams. Specialized in TypeScript ecosystems with high-throughput cloud delivery.",
-  experience: [
-    {
-      id: "exp-1",
-      company: "Aura Web Labs",
-      title: "Lead Frontend Engineer",
-      startDate: "2022",
-      endDate: "Present",
-      current: true,
-      bullets: [
-        "Architected Next.js enterprise dashboard serving 120,000+ monthly active users, slashing Core Web Vitals LCP by 44%.",
-        "Led a team of 6 engineers; pioneered reusable Tailwind CSS component library compliant with WCAG 2.1 AA standards.",
-        "Spearheaded transition from REST endpoints to optimized GraphQL batching, reducing client payload size by 35%.",
-      ],
-    },
-    {
-      id: "exp-2",
-      company: "Kalry Cloud Systems",
-      title: "Full-Stack Engineer",
-      startDate: "2020",
-      endDate: "2022",
-      current: false,
-      bullets: [
-        "Implemented high-concurrency Node.js event pipelines handling 15M+ daily transaction logs backed by PostgreSQL and Redis.",
-        "Integrated Stripe Billing and automated webhooks, supporting enterprise billing flows across 14 international currencies.",
-      ],
-    },
-  ],
-  education: [
-    {
-      id: "edu-1",
-      school: "State University of Technology",
-      degree: "B.S. in Computer Science",
-      field: "Software Systems",
-      startDate: "2016",
-      endDate: "2020",
-      gpa: "3.85",
-    },
-  ],
-  skills: [
-    {
-      id: "skill-1",
-      category: "Frontend Development",
-      items: "React.js, Next.js, JavaScript (ES6+), TypeScript, HTML5 & CSS3, Tailwind CSS, Redux Toolkit",
-    },
-    {
-      id: "skill-2",
-      category: "Backend & Databases",
-      items: "Node.js, Express, PostgreSQL, Prisma ORM, Supabase, RESTful APIs",
-    },
-    {
-      id: "skill-3",
-      category: "AI & Cloud Infrastructure",
-      items: "Docker, AWS (S3, EC2), CI/CD (GitHub Actions), Vercel, Jest, Vitest, OpenAI API",
-    },
-    {
-      id: "skill-4",
-      category: "Architecture & Tools",
-      items: "Micro-frontends, Distributed Systems, Git, Agile/Scrum, Figma to Code",
-    },
-  ],
-  projects: [
-    {
-      id: "proj-1",
-      name: "AI Autonomous Pipeline Platform",
-      tech: "Next.js, Python, Supabase, Gemini API",
-      url: "github.com/amanmahfuz/ai-pipeline",
-      bullets: [
-        "Engineered real-time reactive workflow engine processing 10k+ continuous jobs.",
-      ],
-    },
-  ],
+  summary: "",
+  experience: [],
+  education: [],
+  skills: [],
+  projects: [],
   certifications: [],
   languages: [],
   achievements: [],
@@ -215,6 +147,8 @@ export default function ResumeBuilderClient({
   resumeId,
   readOnly = false,
   initialTemplate,
+  applicationId,
+  applicationInfo,
 }: {
   initialData?: Partial<BuilderResumeData>;
   hasExistingData?: boolean;
@@ -222,6 +156,8 @@ export default function ResumeBuilderClient({
   resumeId?: string;
   readOnly?: boolean;
   initialTemplate?: TemplateId;
+  applicationId?: string;
+  applicationInfo?: { company?: string; jobTitle?: string };
 }) {
   const mergedTheme: ResumeTheme = {
     ...DEFAULT_THEME,
@@ -255,7 +191,9 @@ export default function ResumeBuilderClient({
     versionLabel || "Primary Resume — Full Stack Developer"
   );
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [targetRole, setTargetRole] = useState("Senior Product Engineer");
+  const [targetRole, setTargetRole] = useState(
+    applicationInfo?.jobTitle || "Senior Product Engineer"
+  );
 
   // Missing suggestions tracking
   const [missingSuggestions, setMissingSuggestions] = useState([
@@ -468,12 +406,13 @@ export default function ResumeBuilderClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           resumeId,
+          applicationId,
           data,
           versionLabel: resumeTitle,
         }),
       });
       if (res.ok) {
-        toast.success("Resume saved successfully!");
+        toast.success(applicationId ? "Tailored resume saved to application!" : "Resume saved successfully!");
       } else {
         toast.error("Failed to save resume.");
       }
@@ -524,11 +463,11 @@ export default function ResumeBuilderClient({
           </div>
 
           <Link
-            href="/resumes"
+            href={applicationId ? `/applications/${applicationId}` : "/resumes"}
             className="flex items-center gap-1 text-slate-600 hover:text-slate-900 text-xs font-semibold px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Resumes</span>
+            <span>{applicationId ? "Back to Application" : "Resumes"}</span>
           </Link>
 
           <div className="h-4 w-px bg-slate-200 shrink-0" />
@@ -833,7 +772,7 @@ export default function ResumeBuilderClient({
                       value={data.contact.name}
                       onChange={(e) => updateDataWithHistory((prev) => ({ ...prev, contact: { ...prev.contact, name: e.target.value } }))}
                       className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-indigo-500 focus:bg-white"
-                      placeholder="e.g. AMAN MAHFUZ KZ"
+                      placeholder="e.g. Alex Johnson"
                     />
                   </div>
                   <div className="col-span-2">
@@ -843,7 +782,7 @@ export default function ResumeBuilderClient({
                       value={data.contact.title}
                       onChange={(e) => updateDataWithHistory((prev) => ({ ...prev, contact: { ...prev.contact, title: e.target.value } }))}
                       className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold outline-none focus:border-indigo-500 focus:bg-white uppercase tracking-wider"
-                      placeholder="e.g. FULL-STACK SOFTWARE ENGINEER"
+                      placeholder="e.g. Full-Stack Software Engineer"
                     />
                   </div>
                   <div>
@@ -853,7 +792,7 @@ export default function ResumeBuilderClient({
                       value={data.contact.email}
                       onChange={(e) => updateDataWithHistory((prev) => ({ ...prev, contact: { ...prev.contact, email: e.target.value } }))}
                       className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs outline-none focus:border-indigo-500 focus:bg-white"
-                      placeholder="aman.mahfuz@zentail.dev"
+                      placeholder="alex.johnson@example.com"
                     />
                   </div>
                   <div>
@@ -863,7 +802,7 @@ export default function ResumeBuilderClient({
                       value={data.contact.phone}
                       onChange={(e) => updateDataWithHistory((prev) => ({ ...prev, contact: { ...prev.contact, phone: e.target.value } }))}
                       className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs outline-none focus:border-indigo-500 focus:bg-white"
-                      placeholder="+1 (555) 382-9014"
+                      placeholder="+1 (555) 123-4567"
                     />
                   </div>
                   <div className="col-span-2">
@@ -873,7 +812,7 @@ export default function ResumeBuilderClient({
                       value={data.contact.location}
                       onChange={(e) => updateDataWithHistory((prev) => ({ ...prev, contact: { ...prev.contact, location: e.target.value } }))}
                       className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs outline-none focus:border-indigo-500 focus:bg-white"
-                      placeholder="San Francisco, CA (Open to Remote)"
+                      placeholder="e.g. San Francisco, CA"
                     />
                   </div>
                   <div className="col-span-2">
@@ -883,7 +822,7 @@ export default function ResumeBuilderClient({
                       value={data.contact.github || ""}
                       onChange={(e) => updateDataWithHistory((prev) => ({ ...prev, contact: { ...prev.contact, github: e.target.value } }))}
                       className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs outline-none focus:border-indigo-500 focus:bg-white"
-                      placeholder="github.com/amanmahfuz"
+                      placeholder="github.com/alexjohnson"
                     />
                   </div>
                   <div>
@@ -893,7 +832,7 @@ export default function ResumeBuilderClient({
                       value={data.contact.linkedin || ""}
                       onChange={(e) => updateDataWithHistory((prev) => ({ ...prev, contact: { ...prev.contact, linkedin: e.target.value } }))}
                       className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs outline-none focus:border-indigo-500 focus:bg-white"
-                      placeholder="linkedin.com/in/amanmahfuz"
+                      placeholder="linkedin.com/in/alexjohnson"
                     />
                   </div>
                   <div>
@@ -903,7 +842,7 @@ export default function ResumeBuilderClient({
                       value={data.contact.portfolio || ""}
                       onChange={(e) => updateDataWithHistory((prev) => ({ ...prev, contact: { ...prev.contact, portfolio: e.target.value } }))}
                       className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs outline-none focus:border-indigo-500 focus:bg-white"
-                      placeholder="amanmahfuz.dev"
+                      placeholder="alexjohnson.dev"
                     />
                   </div>
                 </div>

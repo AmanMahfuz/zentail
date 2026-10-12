@@ -1,10 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getGeminiApiKey } from "@/lib/gemini";
 import { NextRequest, NextResponse } from "next/server";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(request: NextRequest) {
   try {
+    const apiKey = getGeminiApiKey() || process.env.GEMINI_API_KEY;
+    const genAI = new GoogleGenerativeAI(apiKey || "");
     const formData = await request.formData();
     const file = formData.get("resume") as File;
     const jd = formData.get("jobDescription") as string;

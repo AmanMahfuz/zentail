@@ -82,23 +82,6 @@ export function LayoutWrapper({
           </span>
         </Link>
         <div className="flex items-center gap-3">
-          <button className="relative text-zinc-500 hover:text-zinc-900">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-            </svg>
-            <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-          </button>
           <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-semibold bg-zinc-100 text-zinc-900 border border-zinc-200 overflow-hidden">
             <img
               src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
@@ -112,7 +95,7 @@ export function LayoutWrapper({
       </div>
 
       {/* ── Main Content ───────────────────────────────────────────── */}
-      <main className="flex-1 ml-60 max-md:ml-0 h-[100dvh] pt-0 max-md:pt-14 pb-0 max-md:pb-16 overflow-y-auto overflow-x-hidden flex flex-col">
+      <main className="flex-1 ml-60 max-md:ml-0 h-[100dvh] pt-0 max-md:pt-14 pb-12 max-md:pb-24 lg:pb-16 overflow-y-auto overflow-x-hidden flex flex-col">
         {children}
       </main>
 

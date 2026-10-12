@@ -11,6 +11,7 @@ import {
 } from "@/types/resume-builder";
 import { Mail, Phone, MapPin, Globe, ExternalLink } from "lucide-react";
 import { categorizeSkills } from "@/lib/resume/skills-categorizer";
+import { formatDateRange } from "@/lib/resume/date-utils";
 
 function LinkedinIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -180,7 +181,7 @@ export default function OriginalTemplate({ data }: TemplateProps) {
                   </div>
                 </div>
                 <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap shrink-0">
-                  {exp.startDate} – {exp.current ? "Present" : exp.endDate}
+                  {formatDateRange(exp.startDate, exp.endDate, exp.current)}
                 </span>
               </div>
               {exp.bullets && exp.bullets.length > 0 && (
@@ -263,7 +264,7 @@ export default function OriginalTemplate({ data }: TemplateProps) {
                 </div>
               </div>
               <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap shrink-0">
-                {edu.startDate} – {edu.endDate}
+                {formatDateRange(edu.startDate, edu.endDate)}
               </span>
             </div>
           ))}

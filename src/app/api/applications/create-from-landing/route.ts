@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAuthClient } from "@/lib/supabase/server";
 import { GoogleGenAI, Type } from "@google/genai";
-import { generateContentWithRetry } from "@/lib/gemini";
+import { getGeminiApiKey, generateContentWithRetry } from "@/lib/gemini";
 import { categorizeSkills, classifySkillName } from "@/lib/resume/skills-categorizer";
 import { generateInterviewPrep } from "@/lib/actions/phase3";
 import { getCachedAIResult, setCachedAIResult, CACHE_TTL_DAYS } from "@/lib/cache";
 
-const apiKey = process.env.GEMINI_API_KEY;
+const getApiKey = () => getGeminiApiKey() || process.env.GEMINI_API_KEY;
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const authHeader = request.headers.get("authorization");
+    const token = authHeader?.replace(/^Bearer\s+/i, "");
+    const supabase = token ? createAuthClient(token) : await createClient();
+    const { data: { user }, error: userError } = await (token ? supabase.auth.getUser(token) : supabase.auth.getUser());
 
     if (userError || !user) {
       return NextResponse.json({ error: "Unauthorized. Please sign in or sign up." }, { status: 401 });
@@ -28,8 +30,8 @@ export async function POST(request: NextRequest) {
     const companyName = analysis?.company || "Target Company";
     const fitScore = typeof analysis?.fitScore === "number" ? analysis.fitScore : 70;
 
-    // 1. Upsert User Profile & Mark Onboarding Completed
-    await (supabase as any).from("profiles").upsert({
+    // 1. Update User Profile & Mark Onboarding Completed
+    const profilePayload = {
       id: user.id,
       email: user.email || profile.personal?.email,
       full_name: profile.personal?.fullName || user.user_metadata?.full_name || "Candidate",
@@ -37,7 +39,15 @@ export async function POST(request: NextRequest) {
       onboarding_completed: true,
       onboarding_completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
-    }, { onConflict: "id" });
+    };
+    const { error: profUpdateErr } = await (supabase as any)
+      .from("profiles")
+      .update(profilePayload)
+      .eq("id", user.id);
+
+    if (profUpdateErr) {
+      await (supabase as any).from("profiles").upsert(profilePayload, { onConflict: "id" });
+    }
 
     // 2. Upsert User Evidence
     await (supabase as any).from("user_evidence").upsert({
@@ -51,6 +61,25 @@ export async function POST(request: NextRequest) {
       portfolio_url: profile.personal?.portfolioUrl || null,
       summary: profile.summary || null,
       last_synced_at: new Date().toISOString()
+    }, { onConflict: "user_id" });
+
+    // 2b. Upsert canonical user_resume (Master Career Profile)
+    const userSkills = Array.isArray(profile.skills)
+      ? profile.skills.map((s: any) => (typeof s === "string" ? s : s.name))
+      : [];
+    await (supabase as any).from("user_resume").upsert({
+      user_id: user.id,
+      full_name: profile.personal?.fullName || user.user_metadata?.full_name || "Candidate",
+      email: profile.personal?.email || user.email || "",
+      phone: profile.personal?.phone || null,
+      location: profile.personal?.location || null,
+      linkedin: profile.personal?.linkedinUrl || null,
+      github: profile.personal?.githubUrl || null,
+      experiences: profile.experience || [],
+      education: profile.education || [],
+      skills: userSkills,
+      projects: profile.projects || [],
+      last_updated: new Date().toISOString()
     }, { onConflict: "user_id" });
 
     // 2. Upsert Skills
@@ -157,9 +186,10 @@ export async function POST(request: NextRequest) {
     // If the candidate already has existing resumes in their collection, scan them to find the closest match
     let scanStrategy = "standard_tailoring";
     let scanMatchPct = 70;
-    if (existingVersions && existingVersions.length > 1 && apiKey) {
+    const activeKey = getApiKey();
+    if (existingVersions && existingVersions.length > 1 && activeKey) {
       try {
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = new GoogleGenAI({ apiKey: activeKey });
         const previews = existingVersions.slice(0, 5).map((v: any) => ({
           id: v.id,
           label: v.version_label,
@@ -241,9 +271,9 @@ export async function POST(request: NextRequest) {
 
       if (cachedTailor) {
         tailoredContent = cachedTailor.data;
-      } else if (apiKey) {
+      } else if (activeKey) {
         try {
-          const ai = new GoogleGenAI({ apiKey });
+          const ai = new GoogleGenAI({ apiKey: activeKey });
           const tailorPrompt = `
             You are an expert executive resume writer and ATS strategist.
             Generate an evidence-grounded, professional resume tailored for the target role: "${jobTitle}" at "${companyName}".

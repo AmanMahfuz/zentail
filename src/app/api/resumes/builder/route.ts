@@ -1,23 +1,28 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { canonicalizeResumeData } from "@/lib/resume/map-resume-data";
+import { createClient, createAuthClient } from "@/lib/supabase/server";
+import { canonicalizeResumeData, formatProfileToMarkdown } from "@/lib/resume/map-resume-data";
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.replace(/^Bearer\s+/i, "");
+    const supabase = token ? createAuthClient(token) : await createClient();
+    const { data: { user } } = await (token ? supabase.auth.getUser(token) : supabase.auth.getUser());
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { markdown, name, data, resumeId } = await req.json();
+    const body = await req.json();
+    const { markdown, name, versionLabel, data, resumeId, applicationId } = body;
+    const resolvedName = versionLabel || name;
 
     if (!markdown && !data) {
       return NextResponse.json({ error: "Markdown or structured resume data is required" }, { status: 400 });
     }
 
     const canonicalContent = data ? canonicalizeResumeData(data) : { markdown };
+    const mdContent = markdown || (data ? formatProfileToMarkdown(canonicalContent) : "");
 
     let publicUrl: string | null = null;
     try {
@@ -26,7 +31,7 @@ export async function POST(req: Request) {
 
       const { error: uploadError } = await supabase.storage
         .from("resumes")
-        .upload(fileName, markdown || JSON.stringify(canonicalContent, null, 2), {
+        .upload(fileName, mdContent || JSON.stringify(canonicalContent, null, 2), {
           contentType: "text/markdown",
           upsert: true,
         });
@@ -39,12 +44,30 @@ export async function POST(req: Request) {
       console.warn("Storage upload notice in builder route:", err);
     }
 
-    // In-place update of existing resume (prevents duplicate versions!)
+    // 1. If an applicationId was passed, persist/sync to tailored_resumes
+    if (applicationId) {
+      try {
+        await (supabase as any)
+          .from("tailored_resumes")
+          .upsert({
+            application_id: applicationId,
+            resume_markdown: mdContent,
+            tailored_content: canonicalContent,
+          }, { onConflict: "application_id" });
+      } catch (tailorErr) {
+        console.warn("tailored_resumes sync notice in builder route:", tailorErr);
+      }
+    }
+
+    // 2. Removed implicit sync to user_resume to protect the Career Profile.
+    // user_resume is now only updated through explicit profile actions.
+
+    // 3. In-place update of existing resume (prevents duplicate versions!)
     if (resumeId) {
       const updatePayload: any = {
         content: canonicalContent,
       };
-      if (name) updatePayload.version_label = name;
+      if (resolvedName) updatePayload.version_label = resolvedName;
       if (publicUrl) updatePayload.pdf_url = publicUrl;
       if (data?.theme) updatePayload.theme = data.theme;
       if (data?.theme?.template) updatePayload.template_id = data.theme.template;
@@ -57,15 +80,13 @@ export async function POST(req: Request) {
         .select()
         .single();
 
-      if (updateError) {
-        console.error("DB Update Error:", updateError);
-        return NextResponse.json({ error: updateError.message || "Failed to update resume" }, { status: 500 });
+      if (!updateError) {
+        return NextResponse.json({ success: true, id: updated?.id || resumeId });
       }
-
-      return NextResponse.json({ success: true, id: updated?.id || resumeId });
+      // If resumeId wasn't found in resume_versions (e.g. was applicationId or tailored ID), continue to insert
     }
 
-    // Dynamic version calculation for newly created resume
+    // 4. Dynamic version calculation for newly created resume
     const { data: existing } = await (supabase as any)
       .from("resume_versions")
       .select("version_number")
@@ -83,9 +104,10 @@ export async function POST(req: Request) {
     const { data: inserted, error: dbError } = await (supabase as any).from("resume_versions").insert({
       user_id: user.id,
       version_number: nextVer,
-      version_label: name || `Built Resume V${nextVer}`,
+      version_label: resolvedName || (applicationId ? `Tailored Resume V${nextVer}` : `Built Resume V${nextVer}`),
       pdf_url: publicUrl,
-      origin_type: "built",
+      origin_type: applicationId ? "tailored" : "built",
+      application_id: applicationId || null,
       template_id: data?.theme?.template || "original",
       theme: data?.theme || null,
       is_latest: true,
@@ -93,7 +115,7 @@ export async function POST(req: Request) {
     }).select().single();
 
     if (dbError) {
-      console.error("DB Error:", dbError);
+      console.error("DB Error in builder route:", dbError);
       return NextResponse.json({ error: dbError.message || "DB Error" }, { status: 500 });
     }
 
@@ -108,7 +130,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, id: inserted?.id });
   } catch (err: any) {
-    console.error(err);
+    console.error("Server error in builder route:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

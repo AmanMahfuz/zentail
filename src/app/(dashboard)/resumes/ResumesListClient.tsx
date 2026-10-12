@@ -55,52 +55,26 @@ export function ResumesListClient({
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
         {/* Tab triggers */}
-        <TabsList className="bg-transparent p-0 flex flex-wrap gap-2 sm:gap-4 h-auto">
+        <TabsList className="bg-slate-100/50 p-1 flex w-max rounded-xl h-auto border border-slate-200/50">
           <TabsTrigger
             value="all"
-            className="rounded-full px-5 py-2.5 data-[state=active]:border-2 data-[state=active]:border-[#7C3AED] data-[state=active]:bg-white border-2 border-transparent text-slate-600 data-[state=active]:text-slate-900 font-medium transition-all shadow-none flex items-center gap-2"
+            className="rounded-lg px-5 py-2 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm text-slate-500 font-semibold transition-all flex items-center text-[13px]"
           >
-            All <span className="bg-slate-100/80 text-slate-600 font-semibold rounded-full px-2.5 py-0.5 text-xs">{filteredAll.length}</span>
+            All <span className="ml-2 bg-slate-100 text-slate-600 py-0.5 px-2 rounded-full text-[10px] font-bold">{filteredAll.length}</span>
           </TabsTrigger>
           <TabsTrigger
             value="master"
-            className="rounded-full px-5 py-2.5 data-[state=active]:border-2 data-[state=active]:border-[#7C3AED] data-[state=active]:bg-white border-2 border-transparent text-slate-600 data-[state=active]:text-slate-900 font-medium transition-all shadow-none flex items-center gap-2"
+            className="rounded-lg px-5 py-2 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm text-slate-500 font-semibold transition-all flex items-center text-[13px]"
           >
-            Master Profiles <span className="bg-slate-100/80 text-slate-600 font-semibold rounded-full px-2.5 py-0.5 text-xs">{filteredMaster.length}</span>
+            Master <span className="ml-2 bg-slate-100 text-slate-600 py-0.5 px-2 rounded-full text-[10px] font-bold">{filteredMaster.length}</span>
           </TabsTrigger>
           <TabsTrigger
             value="tailored"
-            className="rounded-full px-5 py-2.5 data-[state=active]:border-2 data-[state=active]:border-[#7C3AED] data-[state=active]:bg-white border-2 border-transparent text-slate-600 data-[state=active]:text-slate-900 font-medium transition-all shadow-none flex items-center gap-2"
+            className="rounded-lg px-5 py-2 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm text-slate-500 font-semibold transition-all flex items-center text-[13px]"
           >
-            Role Tailored <span className="bg-slate-100/80 text-slate-600 font-semibold rounded-full px-2.5 py-0.5 text-xs">{filteredTailored.length}</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="templates"
-            className="rounded-full px-5 py-2.5 data-[state=active]:border-2 data-[state=active]:border-[#7C3AED] data-[state=active]:bg-white border-2 border-transparent text-slate-600 data-[state=active]:text-slate-900 font-medium transition-all shadow-none flex items-center gap-2"
-          >
-            Templates & ATS
+            Tailored <span className="ml-2 bg-slate-100 text-slate-600 py-0.5 px-2 rounded-full text-[10px] font-bold">{filteredTailored.length}</span>
           </TabsTrigger>
         </TabsList>
-
-        {/* Search input & ATS indicator */}
-        <div className="flex items-center gap-3 w-full lg:w-auto">
-          {activeTab !== "templates" && (
-            <div className="relative flex-1 sm:w-72">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <Input
-                placeholder="Search by role, company, or skill..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-10 rounded-xl bg-white border-slate-200 text-xs shadow-2xs"
-              />
-            </div>
-          )}
-
-          <div className="hidden sm:flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-2 rounded-full text-xs font-semibold border border-emerald-100 shrink-0">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-            ATS Compliant JSON
-          </div>
-        </div>
       </div>
 
       {/* ALL TAB */}
@@ -119,7 +93,7 @@ export function ResumesListClient({
             </div>
           ) : null
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="flex flex-col gap-4">
             {filteredAll.map((resume) =>
               resume.type === "tailored" ? (
                 <TailoredResumeCard key={resume.id} resume={resume} />
@@ -131,7 +105,6 @@ export function ResumesListClient({
                 />
               )
             )}
-            <AddNewResumePlaceholder />
           </div>
         )}
       </TabsContent>
@@ -143,7 +116,7 @@ export function ResumesListClient({
             {searchQuery ? `No master resumes match "${searchQuery}"` : "No master profiles found."}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="flex flex-col gap-4">
             {filteredMaster.map((resume) => (
               <MasterResumeCard
                 key={resume.id}
@@ -151,7 +124,6 @@ export function ResumesListClient({
                 applications={applications}
               />
             ))}
-            <AddNewResumePlaceholder />
           </div>
         )}
       </TabsContent>
@@ -163,17 +135,12 @@ export function ResumesListClient({
             {searchQuery ? `No tailored resumes match "${searchQuery}"` : "No tailored resumes found."}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="flex flex-col gap-4">
             {filteredTailored.map((resume) => (
               <TailoredResumeCard key={resume.id} resume={resume} />
             ))}
           </div>
         )}
-      </TabsContent>
-
-      {/* TEMPLATES TAB */}
-      <TabsContent value="templates" className="mt-0">
-        <TemplateGallery />
       </TabsContent>
     </Tabs>
   );

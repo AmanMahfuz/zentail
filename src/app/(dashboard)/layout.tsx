@@ -27,7 +27,7 @@ export default async function DashboardRootLayout({
 
   if (!isOnboarded) {
     const { count: resumeCount } = await supabase
-      .from("resume_versions")
+      .from("user_resume")
       .select("*", { count: "exact", head: true })
       .eq("user_id", user.id);
 

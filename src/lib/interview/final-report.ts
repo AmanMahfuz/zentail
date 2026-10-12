@@ -1,6 +1,5 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-
-const apiKey = process.env.GEMINI_API_KEY;
+import { getGeminiApiKey, generateContentWithRetry } from "@/lib/gemini";
 
 export type FinalReportType = {
   overallScore: number;
@@ -15,9 +14,6 @@ export async function generateComprehensiveFinalReport(
   answers: any[],
   skillGaps: string[]
 ): Promise<FinalReportType> {
-  if (!apiKey) throw new Error("Gemini API key missing");
-  const ai = new GoogleGenAI({ apiKey });
-
   const schema: Schema = {
     type: Type.OBJECT,
     properties: {
@@ -38,13 +34,14 @@ export async function generateComprehensiveFinalReport(
     
     Data:
     ${JSON.stringify(answers.map(a => ({
-      question: a.question,
-      answer: a.answer,
-      scores: a.scores
+      question: a.question || a.title || a.text,
+      answer: a.answer || a.text || a.transcript || "",
+      score: a.score || a.scores?.overall_score || (typeof a.scores === "number" ? a.scores : undefined),
+      scores: a.scores || { overall_score: a.score, feedback: a.feedback },
     })), null, 2)}
   `;
 
-  const response = await ai.models.generateContent({
+  const response = await generateContentWithRetry({
     model: "gemini-2.5-flash",
     contents: prompt,
     config: {

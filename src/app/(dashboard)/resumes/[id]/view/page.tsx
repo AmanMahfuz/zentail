@@ -19,11 +19,12 @@ export default async function ResumeViewPage({ params }: { params: Promise<{ id:
   let content = null;
   let themeConfig = null;
 
-  // 1. Check resume_versions
+  // 1. Check resume_versions scoped to user_id
   const { data: resumeVersion } = await (supabase as any)
     .from("resume_versions")
     .select("*")
     .eq("id", id)
+    .eq("user_id", user.id)
     .maybeSingle();
 
   if (resumeVersion) {
@@ -33,12 +34,54 @@ export default async function ResumeViewPage({ params }: { params: Promise<{ id:
     themeConfig = resumeVersion.theme || resumeVersion.content?.theme;
   }
 
-  // 2. Check resumes_generated
+  // 1.5 Check tailored_resumes (verified via application ownership)
+  if (!versionRecord) {
+    const { data: tailored } = await (supabase as any)
+      .from("tailored_resumes")
+      .select("*")
+      .or(`id.eq.${id},application_id.eq.${id}`)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+      
+    if (tailored) {
+      // Verify ownership
+      let isOwner = false;
+      if (tailored.application_id) {
+        const { data: appAuth } = await (supabase as any)
+          .from("applications")
+          .select("id")
+          .eq("id", tailored.application_id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        isOwner = !!appAuth;
+      }
+
+      if (isOwner) {
+        let md = tailored.resume_markdown;
+        if (!md && tailored.tailored_content) {
+          const { tailoredResumeToMarkdown } = await import("@/lib/agents/resume-tailor");
+          md = tailoredResumeToMarkdown(tailored.tailored_content as any);
+        }
+        if (md) {
+          versionLabel = "Tailored Resume";
+          content = {
+            markdown: md,
+            personal: { fullName: user.user_metadata?.full_name || "Candidate" },
+          };
+          versionRecord = tailored;
+        }
+      }
+    }
+  }
+
+  // 2. Check resumes_generated scoped to user_id
   if (!versionRecord) {
     const { data: genResume } = await (supabase as any)
       .from("resumes_generated")
       .select("*")
       .eq("id", id)
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (genResume) {
@@ -51,35 +94,23 @@ export default async function ResumeViewPage({ params }: { params: Promise<{ id:
     }
   }
 
-  // 3. Check applications
+  // 3. Check applications scoped to user_id
   if (!versionRecord) {
     const { data: appRecord } = await (supabase as any)
       .from("applications")
       .select("id")
       .eq("id", id)
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (appRecord) {
-      redirect(`/applications/${appRecord.id}/builder`);
+      redirect(`/applications/${appRecord.id}`);
     }
   }
 
-  // 4. Fallback to user latest master resume
+  // If not found or not owned by user, redirect to /resumes
   if (!versionRecord) {
-    const { data: latestMaster } = await (supabase as any)
-      .from("resume_versions")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("is_latest", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (latestMaster) {
-      redirect(`/resumes/${latestMaster.id}/edit`);
-    } else {
-      redirect("/resumes");
-    }
+    redirect("/resumes");
   }
 
   const initialData = mapToBuilderResumeData({

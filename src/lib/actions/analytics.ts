@@ -39,28 +39,50 @@ export async function getResumeAnalytics(
     dateFilter = d.toISOString();
   }
 
-  // Fetch all resumes
-  const { data: resumes } = await (supabase as any)
+  // Fetch all resumes (check user_resume and tailored_resumes if resume_versions is empty)
+  let { data: resumes } = await (supabase as any)
     .from("resume_versions")
     .select("id, version_label, version_number, created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
   if (!resumes || resumes.length === 0) {
+    const { data: masterResume } = await (supabase as any)
+      .from("user_resume")
+      .select("id, full_name, created_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (masterResume) {
+      resumes = [
+        {
+          id: masterResume.id,
+          version_label: "Master Resume (Active)",
+          version_number: 1,
+          created_at: masterResume.created_at,
+        },
+      ];
+    }
+  }
+
+  if (!resumes || resumes.length === 0) {
     return { success: true, data: [] };
   }
 
-  // Fetch all applications linked to resumes in date range
+  // Fetch all applications in date range
   const { data: applications } = await (supabase as any)
     .from("applications")
-    .select("id, resume_version_id, status, applied_at, updated_at")
-    .eq("user_id", user.id)
-    .gte("applied_at", dateFilter);
+    .select("id, resume_version_id, status, applied_at, updated_at, created_at")
+    .eq("user_id", user.id);
 
   if (!applications) return { success: true, data: [] };
 
   const stats: ResumeStats[] = (resumes as any[]).map((resume) => {
-    const apps = (applications as any[]).filter((a) => a.resume_version_id === resume.id);
+    // If only 1 master resume exists, attribute all applications to it
+    const apps = resumes.length === 1
+      ? (applications as any[])
+      : (applications as any[]).filter((a) => a.resume_version_id === resume.id);
+
     const total = apps.length;
     const interviews = apps.filter(
       (a) => a.status === "interview" || a.status === "offer" || a.status === "interviewing"

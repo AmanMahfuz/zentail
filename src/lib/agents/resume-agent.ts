@@ -1,8 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAuthClient } from "@/lib/supabase/server";
 import { generateContentWithRetry } from "@/lib/gemini";
 import { extractText } from "unpdf";
 import PDFDocument from "pdfkit";
+import { formatDateRange } from "@/lib/resume/date-utils";
+import { validateCandidateEvidence } from "./candidate-evidence-validator";
 
 // Helper: Generate PDF Buffer from Markdown
 function generatePDFBuffer(content: string): Promise<Buffer> {
@@ -66,15 +68,177 @@ function truncate(text: string): string {
   return text.length <= MAX_CHARS ? text : text.slice(0, MAX_CHARS) + "\n\n[...truncated]";
 }
 
+export function generateFallbackTailoredResume(bestVer: any, baseContent: any, job: any, options?: { mode?: "direct" | "review"; confirmedSkills?: string[]; unconfirmedSkills?: string[] }) {
+  let contentObj: any = baseContent;
+  if (typeof baseContent === "string") {
+    try {
+      contentObj = JSON.parse(baseContent);
+    } catch {
+      contentObj = {};
+    }
+  }
+
+  const name =
+    contentObj?.contact?.name ||
+    contentObj?.name ||
+    (contentObj?.first_name ? `${contentObj.first_name} ${contentObj.last_name || ""}`.trim() : "") ||
+    bestVer?.version_label ||
+    "Candidate";
+
+  // Preserve missing contact details as empty strings — no fabricated placeholders
+  const email = contentObj?.contact?.email || contentObj?.email || "";
+  const phone = contentObj?.contact?.phone || contentObj?.phone || "";
+  const location = contentObj?.contact?.location || contentObj?.location || "";
+  const linkedin = contentObj?.contact?.linkedin || contentObj?.linkedin || "";
+  const github = contentObj?.contact?.github || contentObj?.github || "";
+
+  // Extract candidate skills
+  let candidateSkills: string[] = [];
+  if (Array.isArray(contentObj?.skills)) {
+    contentObj.skills.forEach((s: any) => {
+      if (typeof s === "string") candidateSkills.push(s);
+      else if (s && Array.isArray(s.items)) candidateSkills.push(...s.items);
+    });
+  }
+  // In Review Mode, append user-confirmed skills
+  if (options?.mode === "review" && Array.isArray(options.confirmedSkills)) {
+    for (const cs of options.confirmedSkills) {
+      if (!candidateSkills.some(existing => existing.toLowerCase() === cs.toLowerCase())) {
+        candidateSkills.push(cs);
+      }
+    }
+  }
+
+  // Scan JD for skills
+  const commonTech = [
+    "JavaScript", "TypeScript", "React", "Next.js", "Node.js", "HTML", "CSS", "TailwindCSS",
+    "WordPress", "Elementor", "PHP", "Python", "Java", "C++", "C#", "Go", "Rust",
+    "SQL", "PostgreSQL", "MySQL", "MongoDB", "Redis", "Supabase", "Firebase",
+    "AWS", "GCP", "Azure", "Docker", "Kubernetes", "Git", "GitHub", "CI/CD",
+    "REST APIs", "GraphQL", "UI/UX", "Responsive Design", "SEO", "Testing", "Jest"
+  ];
+  const jdLower = (job.description || "").toLowerCase();
+  const jdSkills = commonTech.filter(tech => {
+    const reg = new RegExp(`\\b${tech.replace(/[.+]/g, "\\$&")}\\b`, "i");
+    return reg.test(jdLower);
+  });
+
+  const skills_matched = candidateSkills.filter(cSkill =>
+    jdSkills.some(jSkill => jSkill.toLowerCase() === cSkill.toLowerCase())
+  );
+  if (skills_matched.length === 0) {
+    skills_matched.push(...candidateSkills.slice(0, 4));
+  }
+  const skills_missing = jdSkills.filter(jSkill =>
+    !candidateSkills.some(cSkill => cSkill.toLowerCase() === jSkill.toLowerCase())
+  );
+
+  const contactLine = [email, phone, location, linkedin, github].filter(Boolean).join(" | ");
+
+  // Build experience section — only from real candidate data. No fabricated blocks.
+  const experiences = Array.isArray(contentObj?.experiences)
+    ? contentObj.experiences
+    : Array.isArray(contentObj?.experience)
+    ? contentObj.experience
+    : [];
+
+  let experienceMarkdown = "";
+  for (const exp of experiences) {
+    const roleTitle = exp.title || exp.role || "";
+    const compName = exp.company || "";
+    if (!roleTitle && !compName) continue; // skip empty entries
+    const dateStr = exp.period || exp.duration || formatDateRange(exp.startDate, exp.endDate, exp.current) || exp.date || "";
+    const bullets = Array.isArray(exp.bullets) ? exp.bullets.filter(Boolean) : (exp.description ? [exp.description] : []);
+    experienceMarkdown += `### ${roleTitle}${compName ? ` - ${compName}` : ""}\n${dateStr ? `${dateStr}\n` : ""}`;
+    for (const b of bullets) {
+      experienceMarkdown += `- ${b}\n`;
+    }
+    experienceMarkdown += "\n";
+  }
+
+  const summarySkills = skills_matched.length > 0
+    ? `with practical experience in ${skills_matched.slice(0, 4).join(", ")}`
+    : "seeking to contribute technical skills";
+  const summary = `Professional targeting the ${job.title} position at ${job.company}, ${summarySkills}.`;
+
+  const skillsLine = candidateSkills.length > 0
+    ? `- Skills: ${candidateSkills.join(", ")}\n`
+    : "";
+
+  const educations = Array.isArray(contentObj?.education)
+    ? contentObj.education
+    : Array.isArray(contentObj?.educations)
+    ? contentObj.educations
+    : [];
+
+  let educationMarkdown = "";
+  for (const edu of educations) {
+    const degree = edu.degree || edu.degree_name || "Degree";
+    const inst = edu.institution || edu.school || edu.university || "";
+    const date = edu.period || edu.duration || formatDateRange(edu.startDate, edu.endDate) || edu.year || edu.graduationDate || "";
+    educationMarkdown += `### ${degree}${inst ? ` - ${inst}` : ""}\n${date ? `${date}\n` : ""}\n`;
+  }
+
+  const projects = Array.isArray(contentObj?.projects) ? contentObj.projects : [];
+  let projectsMarkdown = "";
+  for (const proj of projects) {
+    const projName = proj.name || proj.title || "Project";
+    const tech = proj.tech ? ` (${proj.tech})` : "";
+    const pBullets = Array.isArray(proj.bullets) ? proj.bullets.filter(Boolean) : (proj.description ? [proj.description] : []);
+    projectsMarkdown += `### ${projName}${tech}\n`;
+    for (const b of pBullets) {
+      projectsMarkdown += `- ${b}\n`;
+    }
+    projectsMarkdown += "\n";
+  }
+
+  const resume_markdown = `# ${name}
+${contactLine ? `${contactLine}\n` : ""}
+## Summary
+${summary}
+
+## Skills
+${skillsLine}
+## Experience
+${experienceMarkdown.trim() || "(No professional experience on file)"}
+
+${projectsMarkdown.trim() ? `## Projects\n${projectsMarkdown.trim()}\n\n` : ""}${educationMarkdown.trim() ? `## Education\n${educationMarkdown.trim()}\n` : ""}`;
+
+  return {
+    resume_markdown: resume_markdown.trim() + "\n",
+    skills_matched,
+    skills_missing: skills_missing.slice(0, 4),
+    // Null score — fallback cannot compute a real ATS score
+    ats_score: null as unknown as number,
+    tailoring_log: [
+      `Fallback resume generated from candidate profile (AI unavailable).`,
+      `Mode: ${options?.mode || "direct"}. No experience or scores were fabricated.`,
+    ]
+  };
+}
+
 export class ResumeAgent {
   /**
    * Generates a tailored resume for a specific application using Gemini 2.0 Flash.
+   * Supports Direct Mode (automatic from supported facts) and Review Mode (user-confirmed facts).
    */
-  static async tailorForJob(applicationId: string) {
+  static async tailorForJob(
+    applicationId: string,
+    accessToken?: string,
+    options?: {
+      mode?: "direct" | "review";
+      confirmedSkills?: string[];
+      unconfirmedSkills?: string[];
+      force?: boolean;
+    }
+  ) {
     try {
-      console.log(`[ResumeAgent] Starting tailoring for application: ${applicationId}`);
-      const supabase = await createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const mode = options?.mode || "direct";
+      const confirmedSkills = Array.isArray(options?.confirmedSkills) ? options!.confirmedSkills : [];
+      const unconfirmedSkills = Array.isArray(options?.unconfirmedSkills) ? options!.unconfirmedSkills : [];
+      console.log(`[ResumeAgent] Starting tailoring for application: ${applicationId} (mode: ${mode})`);
+      const supabase = accessToken ? createAuthClient(accessToken) : await createClient();
+      const { data: { user } } = await (accessToken ? supabase.auth.getUser(accessToken) : supabase.auth.getUser());
       if (!user) return { success: false, message: "Unauthorized" };
 
       const apiKey = process.env.GEMINI_API_KEY;
@@ -82,7 +246,7 @@ export class ResumeAgent {
 
       const { data: application, error: appError } = await (supabase as any)
         .from("applications")
-        .select("id, resume_version_id, fit_score, job_title, company_name, job_description, job:jobs ( title, company, description )")
+        .select("id, user_id, resume_version_id, fit_score, job_title, company_name, job_description, job:jobs ( title, company, description )")
         .eq("id", applicationId)
         .single();
 
@@ -91,8 +255,8 @@ export class ResumeAgent {
       }
 
       // Interview Qualification Check: If candidate's resume already has an interview-ready score (>= 80%),
-      // do not create unnecessary tailored copies!
-      if ((application.fit_score ?? 0) >= 80) {
+      // do not create unnecessary tailored copies unless explicitly forced or running Review Mode!
+      if (!options?.force && mode === "direct" && (application.fit_score ?? 0) >= 80) {
         console.log(`[ResumeAgent] Application ${applicationId} already has interview-ready fit score of ${application.fit_score}% (>= 80%). Tailoring skipped.`);
         return {
           success: true,
@@ -190,8 +354,8 @@ Instructions:
               scanRationale = scanResult.rationale || "";
               console.log(`[ResumeAgent] Collection scan complete: Selected "${bestVer.version_label}" (${scanMatchPct}% match, strategy: ${scanStrategy})`);
 
-              // If candidate's existing resume already matches >= 80%, link it directly without tailoring!
-              if (scanMatchPct >= 80) {
+              // If candidate's existing resume already matches >= 80% and not forcing tailoring, link directly!
+              if (!options?.force && mode === "direct" && scanMatchPct >= 80) {
                 console.log(`[ResumeAgent] Resume "${bestVer.version_label}" matches at ${scanMatchPct}% (>= 80%). Linking directly without tailoring.`);
                 await (supabase as any)
                   .from("applications")
@@ -201,6 +365,47 @@ Instructions:
                     fit_level: "strong"
                   })
                   .eq("id", application.id);
+
+                try {
+                  const { data: userResumeRow } = await (supabase as any)
+                    .from("user_resume")
+                    .select("id")
+                    .eq("user_id", user.id)
+                    .maybeSingle();
+                  const validBaseResumeId = userResumeRow?.id || null;
+
+                  const { data: existingTailored } = await (supabase as any)
+                    .from("tailored_resumes")
+                    .select("id")
+                    .eq("application_id", application.id)
+                    .maybeSingle();
+
+                  if (existingTailored?.id) {
+                    await (supabase as any)
+                      .from("tailored_resumes")
+                      .update({
+                        base_resume_id: validBaseResumeId,
+                        tailored_content: { ...bestVer.content, tailoring_mode: "direct" },
+                        resume_markdown: bestVer.content?.markdown || "",
+                        ats_score: scanMatchPct,
+                        match_percentage: scanMatchPct,
+                      })
+                      .eq("id", existingTailored.id);
+                  } else {
+                    await (supabase as any)
+                      .from("tailored_resumes")
+                      .insert({
+                        application_id: application.id,
+                        base_resume_id: validBaseResumeId,
+                        tailored_content: { ...bestVer.content, tailoring_mode: "direct" },
+                        resume_markdown: bestVer.content?.markdown || "",
+                        ats_score: scanMatchPct,
+                        match_percentage: scanMatchPct,
+                      });
+                  }
+                } catch (tailorSyncErr) {
+                  console.warn("[ResumeAgent] tailored_resumes direct sync notice:", tailorSyncErr);
+                }
 
                 return {
                   success: true,
@@ -236,29 +441,35 @@ Instructions:
         }
       }
 
-      // If user has no resume text yet, look up latest valid resume_versions globally
+      // P0-A: If no resume found for this user, fail safely.
       if (!resumeText || resumeText.trim().length < 50 || resumeText === "{}") {
-        const { data: fallbackVer } = await (supabase as any)
-          .from("resume_versions")
-          .select("*")
-          .not("content", "is", null)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (fallbackVer?.content) {
-          bestVer = fallbackVer;
-          parentVersionId = fallbackVer.id;
-          baseContent = fallbackVer.content;
-          resumeText = JSON.stringify(fallbackVer.content, null, 2);
-        }
+        return {
+          success: false,
+          message: "No resume found for your account. Please set up your Career Profile or upload a resume before applying."
+        };
       }
 
-      if (!resumeText || resumeText.trim().length < 50) {
-        throw new Error("Cannot tailor resume: No base resume found for candidate.");
+      // 2. Prompt Engineering with Direct vs Review Mode and Airtight Truthfulness
+      let modeSpecificInstructions = "";
+      if (mode === "review" && confirmedSkills.length > 0) {
+        modeSpecificInstructions = `
+--- REVIEW MODE CONFIRMATIONS ---
+The candidate reviewed job requirements not demonstrated on their base resume and EXPLICITLY CONFIRMED possessing these additional skills:
+${confirmedSkills.join(", ")}
+You MAY include these confirmed skills in the candidate's skills list and align them truthfully.
+The candidate DID NOT confirm the following requirements:
+${unconfirmedSkills.join(", ")}
+CRITICAL: You MUST NOT include these unconfirmed skills in the resume. Keep them in 'skills_missing'.
+Note: A missing/unconfirmed skill is simply undemonstrated on the resume, NEVER describe it as a confirmed deficiency.
+`;
+      } else {
+        modeSpecificInstructions = `
+--- DIRECT MODE DIRECTIVE ---
+Generate strictly without interruption using ONLY supported facts from the candidate's base resume.
+Do NOT assume or invent any skill or qualification not in the base resume.
+`;
       }
 
-      // 2. Prompt Engineering
       const prompt = `You are an expert ATS resume writer and AI Recruiter. 
 Your task is to tailor the user's resume for the provided Job Description, maximizing the ATS match score while strictly adhering to the truth.
 
@@ -271,20 +482,23 @@ Company: ${job.company}
 Description:
 ${truncate(job.description || "")}
 
---- Tailoring Strategy & Rationale ---
+--- Mode & Tailoring Strategy ---
+Mode: ${mode.toUpperCase()}
 Strategy: ${scanStrategy}
 Baseline Match: ${scanMatchPct}%
 ${scanRationale ? `Rationale: ${scanRationale}\n` : ""}
+${modeSpecificInstructions}
 
-${scanStrategy === "minor_alterations" 
-  ? "**STRATEGY NOTE: MINOR ALTERATIONS**\nThis resume is ALREADY a very close match to the target JD. Retain the strong existing structure and only make precise, targeted alterations (headline alignment, key tool emphasis, and metric sharpening) to fit ${job.company}."
-  : "**STRATEGY NOTE: ADAPTIVE TAILORING**\nReorder and emphasize matching skills, sharpen experience bullet points with relevant keywords, and align the professional summary to ${job.title} at ${job.company}."
-}
-
-**CRITICAL RULE: Truthful Tailoring**
-- You may reorder, highlight, or rephrase existing bullet points to better match the job description's keywords.
-- You MUST NOT invent, hallucinate, or add skills, experiences, metrics, or degrees that are not explicitly present in the original resume.
-- If the job requires a skill the user DOES NOT have, do NOT add it.
+**CRITICAL RULES: Strict Truthfulness & Zero Fabrication (P0)**
+1. FIXED CANDIDATE REALITY: The candidate's work history, past employers, job titles, employment dates, degrees, schools, and metrics come SOLELY from the Base Resume. You MUST NOT invent, add, or alter any of these.
+2. NEVER INVENT PAST EMPLOYERS: The candidate has ONLY worked at the employers listed in their Base Resume. You MUST NOT list ${job.company} or any competitor/example company mentioned in the Job Description as a past employer of the candidate.
+3. NEVER INVENT DEGREES OR INSTITUTIONS: If the candidate's Base Resume has no degree or only high school, do NOT add Bachelor's, Master's, or Ph.D., and do NOT add universities (e.g. Stanford, MIT, Harvard) mentioned in the Job Description.
+4. NEVER INVENT YEARS OF EXPERIENCE: Do NOT claim the candidate has 10+ or 12+ years of experience if their work history shows 1-2 years.
+5. NEVER BORROW METRICS OR ACHIEVEMENTS FROM THE JOB DESCRIPTION: If the job description says "Must have scaled $100M ARR system" or "managed 50 engineers", NEVER insert "$100M ARR" or "managed 50 engineers" into the candidate's bullets or summary. Bullet metrics must ONLY be derived from the candidate's own actual achievements.
+6. SKILLS INVENTORY:
+   - Only include skills that exist in the candidate's base resume${mode === "review" && confirmedSkills.length > 0 ? " or in the confirmed skills list above" : ""}.
+   - If the job description requires a skill that the candidate does not have, do NOT add it to the resume skills list or experience bullets. List it ONLY in 'skills_missing'.
+   - NEVER turn job requirements into candidate qualifications!
 
 Format the resume_markdown to match this exact shape:
 # [First Last]
@@ -305,29 +519,55 @@ Format the resume_markdown to match this exact shape:
 ...`;
 
       // 3. Execution (Gemini Call)
-      console.log(`[ResumeAgent] Calling Gemini...`);
-      const response = await generateContentWithRetry({
-        ai,
-        contents: prompt,
-        config: {
-          temperature: 0.2,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              resume_markdown: { type: Type.STRING },
-              skills_matched: { type: Type.ARRAY, items: { type: Type.STRING } },
-              skills_missing: { type: Type.ARRAY, items: { type: Type.STRING } },
-              ats_score: { type: Type.INTEGER },
-              tailoring_log: { type: Type.ARRAY, items: { type: Type.STRING } }
-            },
-            required: ["resume_markdown", "skills_matched", "skills_missing", "ats_score", "tailoring_log"]
-          }
-        }
-      });
+      console.log(`[ResumeAgent] Calling Gemini (${mode} mode)...`);
+      let parsed: {
+        resume_markdown: string;
+        skills_matched: string[];
+        skills_missing: string[];
+        ats_score: number;
+        tailoring_log: string[];
+      };
 
-      const parsed = JSON.parse(response.text || "{}");
-      console.log(`[ResumeAgent] Gemini returned score: ${parsed.ats_score}`);
+      try {
+        const response = await generateContentWithRetry({
+          ai,
+          contents: prompt,
+          config: {
+            temperature: 0.15,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                resume_markdown: { type: Type.STRING },
+                skills_matched: { type: Type.ARRAY, items: { type: Type.STRING } },
+                skills_missing: { type: Type.ARRAY, items: { type: Type.STRING } },
+                ats_score: { type: Type.INTEGER },
+                tailoring_log: { type: Type.ARRAY, items: { type: Type.STRING } }
+              },
+              required: ["resume_markdown", "skills_matched", "skills_missing", "ats_score", "tailoring_log"]
+            }
+          }
+        });
+
+        parsed = JSON.parse(response.text || "{}");
+        console.log(`[ResumeAgent] Gemini returned score: ${parsed.ats_score} (${mode} mode)`);
+
+        // Comprehensive candidate-evidence boundary enforcement (P0):
+        const validation = validateCandidateEvidence(parsed.resume_markdown, baseContent, job, {
+          mode,
+          confirmedSkills,
+          unconfirmedSkills,
+        });
+
+        if (!validation.isValid) {
+          console.warn("[ResumeAgent] Candidate evidence boundary violations detected:", validation.violations);
+          console.warn("[ResumeAgent] Enforcing truthful candidate boundary via fallback generator.");
+          parsed = generateFallbackTailoredResume(bestVer, baseContent, job, { mode, confirmedSkills, unconfirmedSkills });
+        }
+      } catch (geminiErr) {
+        console.warn("[ResumeAgent] Gemini unavailable or credits depleted, using deterministic resume generator:", geminiErr);
+        parsed = generateFallbackTailoredResume(bestVer, baseContent, job, { mode, confirmedSkills, unconfirmedSkills });
+      }
 
       // 4. Persistence
       const targetUserId = application.user_id || user.id;
@@ -389,6 +629,11 @@ Format the resume_markdown to match this exact shape:
           .eq("application_id", application.id)
           .maybeSingle();
 
+        const confirmationsObj = {
+          confirmed: confirmedSkills,
+          unconfirmed: unconfirmedSkills,
+        };
+
         const versionContent = baseContent
           ? {
               ...baseContent,
@@ -397,6 +642,8 @@ Format the resume_markdown to match this exact shape:
               match_percentage: parsed.ats_score,
               skills_matched: parsed.skills_matched ?? [],
               skills_missing: parsed.skills_missing ?? [],
+              tailoring_mode: mode,
+              user_confirmations: confirmationsObj,
             }
           : {
               markdown: parsed.resume_markdown,
@@ -404,6 +651,8 @@ Format the resume_markdown to match this exact shape:
               match_percentage: parsed.ats_score,
               skills_matched: parsed.skills_matched ?? [],
               skills_missing: parsed.skills_missing ?? [],
+              tailoring_mode: mode,
+              user_confirmations: confirmationsObj,
             };
 
         let verRow: any = null;
@@ -467,25 +716,61 @@ Format the resume_markdown to match this exact shape:
           .eq("id", application.id);
 
         console.log(`[ResumeAgent] Application ${application.id} updated with resume_version_id: ${verRow?.id || 'none'} and fit_score: ${parsed.ats_score}`);
+
+        // Sync into tailored_resumes table
+        try {
+          const { data: userResumeRow } = await (supabase as any)
+            .from("user_resume")
+            .select("id")
+            .eq("user_id", targetUserId)
+            .maybeSingle();
+          const validBaseResumeId = userResumeRow?.id || null;
+
+          const { data: existingTailored } = await (supabase as any)
+            .from("tailored_resumes")
+            .select("id")
+            .eq("application_id", application.id)
+            .maybeSingle();
+
+          if (existingTailored?.id) {
+            await (supabase as any)
+              .from("tailored_resumes")
+              .update({
+                base_resume_id: validBaseResumeId,
+                tailored_content: versionContent,
+                resume_markdown: parsed.resume_markdown,
+                ats_score: parsed.ats_score,
+                match_percentage: parsed.ats_score,
+              })
+              .eq("id", existingTailored.id);
+          } else {
+            await (supabase as any)
+              .from("tailored_resumes")
+              .insert({
+                application_id: application.id,
+                base_resume_id: validBaseResumeId,
+                tailored_content: versionContent,
+                resume_markdown: parsed.resume_markdown,
+                ats_score: parsed.ats_score,
+                match_percentage: parsed.ats_score,
+              });
+          }
+        } catch (tailorSyncErr) {
+          console.warn("[ResumeAgent] tailored_resumes sync notice:", tailorSyncErr);
+        }
       } catch (verErr) {
         console.warn("[ResumeAgent] resume_versions insert warning:", verErr);
       }
 
-      // Auto-trigger interview prep text pack for this application
-      try {
-        const { generateInterviewPrep } = await import("@/lib/actions/phase3");
-        await generateInterviewPrep(application.id);
-      } catch (prepErr) {
-        console.warn("[ResumeAgent] generateInterviewPrep warning:", prepErr);
-      }
-
-      // Auto-trigger 15-question interview Q&A bank
-      try {
-        const { generateQABank } = await import("@/lib/actions/phase3");
-        await generateQABank(application.id);
-      } catch (qaErr) {
-        console.warn("[ResumeAgent] generateQABank warning:", qaErr);
-      }
+      // Auto-trigger interview prep and QA bank in background without blocking resume return
+      import("@/lib/actions/phase3").then(({ generateInterviewPrep, generateQABank }) => {
+        generateInterviewPrep(application.id, accessToken).catch((prepErr) => {
+          console.warn("[ResumeAgent] generateInterviewPrep warning:", prepErr?.message || prepErr);
+        });
+        generateQABank(application.id, accessToken).catch((qaErr) => {
+          console.warn("[ResumeAgent] generateQABank warning:", qaErr?.message || qaErr);
+        });
+      }).catch(() => {});
 
       // Revalidate all caches so that /resumes, /applications, etc. immediately reflect the new tailored resume!
       try {
@@ -501,7 +786,20 @@ Format the resume_markdown to match this exact shape:
       }
 
       console.log(`[ResumeAgent] Successfully generated and saved tailored resume.`);
-      return { success: true, data: { ...inserted, tailoring_log: parsed.tailoring_log } };
+      return {
+        success: true,
+        data: {
+          ...inserted,
+          tailoring_log: parsed.tailoring_log,
+          ats_score: parsed.ats_score,
+          match_percentage: parsed.ats_score,
+          mode,
+          skills_matched: parsed.skills_matched,
+          skills_missing: parsed.skills_missing,
+          resume_markdown: parsed.resume_markdown,
+          pdf_url: pdfUrl,
+        }
+      };
     } catch (error: any) {
       console.error("[ResumeAgent] Fatal Error:", error);
       return { success: false, message: error.message };

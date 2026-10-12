@@ -174,7 +174,7 @@ export function AIGenerateModal({
             AI Resume Builder Wizard
           </DialogTitle>
           <p className="text-indigo-100 text-xs mt-1">
-            Fill in each structured section. Our AI will compile and format it into a complete Master Resume.
+            Fill in each structured section. Our AI will compile and format it into a complete AI Generated Resume.
           </p>
 
           {/* Stepper Tabs */}
@@ -627,11 +627,11 @@ export function AIGenerateModal({
             >
               {isGenerating ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating Master Resume...
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating AI Resume...
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 mr-1.5" /> Generate Master Resume →
+                  <Sparkles className="w-4 h-4 mr-1.5" /> Generate AI Resume →
                 </>
               )}
             </Button>

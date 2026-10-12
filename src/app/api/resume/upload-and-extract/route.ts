@@ -1,20 +1,61 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { createClient } from "@/lib/supabase/server";
+import { getGeminiApiKey } from "@/lib/gemini";
+import { createClient, createAuthClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getCachedAIResult, setCachedAIResult, CACHE_TTL_DAYS } from "@/lib/cache";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
+    const contentLength = parseInt(request.headers.get("content-length") || "0", 10);
+    if (contentLength > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: "File size exceeds the 10MB limit" }, { status: 400 });
+    }
+
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return NextResponse.json({ error: "File size exceeds the 10MB limit or is invalid." }, { status: 400 });
+    }
+
     const file = formData.get("resume") as File;
-    const userId = formData.get("userId") as string | null;
 
     if (!file) {
       return NextResponse.json({ error: "No resume file provided" }, { status: 400 });
     }
+
+    if (file.size === 0) {
+      return NextResponse.json({ error: "Uploaded resume file is empty" }, { status: 400 });
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: "File size exceeds the 10MB limit" }, { status: 400 });
+    }
+
+    const fileNameLower = (file.name || "").toLowerCase();
+    const validExts = [".pdf", ".docx", ".doc", ".txt"];
+    const hasValidExt = validExts.some(ext => fileNameLower.endsWith(ext));
+    const validMimes = [
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/msword",
+      "text/plain",
+      "application/octet-stream"
+    ];
+    if (!hasValidExt && !validMimes.includes(file.type)) {
+      return NextResponse.json(
+        { error: "Unsupported file format. Please upload a PDF, DOCX, or TXT file." },
+        { status: 400 }
+      );
+    }
+
+    const authHeader = request.headers.get("authorization");
+    const token = authHeader?.replace(/^Bearer\s+/i, "");
+    const supabase = token ? createAuthClient(token) : await createClient();
+    const { data: { user } } = await (token ? supabase.auth.getUser(token) : supabase.auth.getUser());
+    // Only use authenticated user's ID to prevent IDOR / cross-user tampering
+    const authenticatedUserId = user ? user.id : null;
 
     // Convert to buffer and compute hash
     const bytes = await file.arrayBuffer();
@@ -29,9 +70,9 @@ export async function POST(request: NextRequest) {
 
     if (cached) {
       const extracted = cached.data;
-      if (userId) {
-        await saveToEvidenceBase(userId, extracted);
-        const resumeV1 = await createResumeVersion(userId, extracted, "upload", 1);
+      if (authenticatedUserId) {
+        await saveToEvidenceBase(authenticatedUserId, extracted);
+        const resumeV1 = await createResumeVersion(authenticatedUserId, extracted, "upload", 1);
         return NextResponse.json(
           { success: true, extracted, resumeVersionId: resumeV1.id, cached: true },
           {
@@ -56,6 +97,8 @@ export async function POST(request: NextRequest) {
     }
 
     const base64 = buffer.toString("base64");
+    const apiKey = getGeminiApiKey() || process.env.GEMINI_API_KEY;
+    const genAI = new GoogleGenerativeAI(apiKey || "");
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const extractPrompt = `
@@ -164,12 +207,12 @@ export async function POST(request: NextRequest) {
       model: "gemini-2.5-flash",
     });
 
-    if (userId) {
+    if (authenticatedUserId) {
       // Save to evidence base
-      await saveToEvidenceBase(userId, extracted);
+      await saveToEvidenceBase(authenticatedUserId, extracted);
 
       // Create Resume V1
-      const resumeV1 = await createResumeVersion(userId, extracted, "upload", 1);
+      const resumeV1 = await createResumeVersion(authenticatedUserId, extracted, "upload", 1);
 
       return NextResponse.json(
         {
@@ -187,7 +230,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // No userId (public/onboarding) — just return extracted data
+    // No authenticated user (public/onboarding) — just return extracted data
     return NextResponse.json(
       { success: true, extracted, cached: false },
       {
@@ -205,6 +248,25 @@ export async function POST(request: NextRequest) {
 
 async function saveToEvidenceBase(userId: string, data: any) {
   const supabase = await createClient();
+
+  // Save canonical master profile to user_resume
+  const userSkills = Array.isArray(data.skills)
+    ? data.skills.map((s: any) => (typeof s === "string" ? s : s.name))
+    : [];
+  await (supabase as any).from("user_resume").upsert({
+    user_id: userId,
+    full_name: data.personal?.fullName || "Candidate",
+    email: data.personal?.email || "",
+    phone: data.personal?.phone || null,
+    location: data.personal?.location || null,
+    linkedin: data.personal?.linkedinUrl || null,
+    github: data.personal?.githubUrl || null,
+    experiences: data.experience || [],
+    education: data.education || [],
+    skills: userSkills,
+    projects: data.projects || [],
+    last_updated: new Date().toISOString()
+  }, { onConflict: "user_id" });
 
   // Save personal info
   await (supabase as any).from("user_evidence").upsert({

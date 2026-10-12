@@ -41,7 +41,11 @@ export function AddJobFlow({
 
     if (result.success) {
       if (onComplete) onComplete();
-      router.refresh();
+      if (result.applicationId) {
+        router.push(`/applications/${result.applicationId}`);
+      } else {
+        router.refresh();
+      }
     } else {
       setError(result.message || "Failed to create application.");
     }

@@ -2,6 +2,7 @@ import React from "react";
 import { BuilderResumeData } from "@/types/resume-builder";
 import { Mail, Phone, MapPin, Globe } from "lucide-react";
 import { categorizeSkills } from "@/lib/resume/skills-categorizer";
+import { formatDateRange } from "@/lib/resume/date-utils";
 
 interface TemplateProps {
   data: BuilderResumeData;
@@ -159,7 +160,7 @@ export default function BalancedTemplate({ data }: TemplateProps) {
                     {exp.location && <span className="text-[10px] text-slate-500 font-normal">, {exp.location}</span>}
                   </div>
                   <span className="text-[10.5px] italic text-slate-600">
-                    {exp.startDate} – {exp.current ? "Present" : exp.endDate || "Present"}
+                    {formatDateRange(exp.startDate, exp.endDate, exp.current)}
                   </span>
                 </div>
                 <div className="text-[11px] font-semibold text-slate-700 italic mb-0.5">
@@ -240,7 +241,7 @@ export default function BalancedTemplate({ data }: TemplateProps) {
                   </div>
                 </div>
                 <span className="text-[10px] italic text-slate-600">
-                  {edu.startDate} – {edu.endDate}
+                  {formatDateRange(edu.startDate, edu.endDate)}
                 </span>
               </div>
             ))}

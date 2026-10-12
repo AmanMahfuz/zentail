@@ -2,8 +2,15 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { convertGeminiAudioToWavBase64 } from "@/utils/audioConversion";
 import { getInterviewConfigForRole, InterviewRoleFamily } from "@/config/interviewTracks";
+import { getGeminiApiKey, generateContentWithRetry } from "@/lib/gemini";
 
-const apiKey = process.env.GEMINI_API_KEY;
+function resolveApiKey(): string {
+  const key = getGeminiApiKey() || process.env.GEMINI_API_KEY;
+  if (!key) {
+    throw new Error("GEMINI_API_KEY not configured");
+  }
+  return key;
+}
 
 export interface AdaptiveInterviewQuestion {
   id: string;
@@ -31,9 +38,7 @@ export async function startAdaptiveInterview(options: {
   budgetLimit?: number;
   voice?: string;
 }): Promise<{ questions: AdaptiveInterviewQuestion[] }> {
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY not configured");
-  }
+  const apiKey = resolveApiKey();
 
   const {
     role,
@@ -86,7 +91,7 @@ export async function startAdaptiveInterview(options: {
        - question_type: "standard"
   `;
 
-  const response = await ai.models.generateContent({
+  const response = await generateContentWithRetry({
     model: "gemini-2.5-flash",
     contents: prompt,
     config: {
@@ -174,9 +179,7 @@ export async function evaluateAdaptiveAnswer(options: {
   resumeDataJson?: string;
   voice?: string;
 }) {
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY not configured");
-  }
+  const apiKey = resolveApiKey();
 
   const {
     question,
@@ -235,13 +238,14 @@ export async function evaluateAdaptiveAnswer(options: {
        - Count filler words ("um", "uh", "you know", "like") if present.
        - List 2-3 specific things that worked well.
        - Provide the single most important "priority_fix" to elevate the answer.
-       - Rewrite the answer using the executive STAR framework (Situation, Task, Action, Result with metrics) for their "better_structure".
+       - Rewrite the answer using the executive STAR framework (Situation, Task, Action, Result) for 'better_structure'.
+         CRITICAL: DO NOT invent fictitious past companies, imaginary positions, fake metrics, or fake projects that the candidate never mentioned. Anchor the rewrite strictly to what the candidate actually described, using clean structural framing and guidance for missing elements.
        - If audio is provided, accurately transcribe the candidate's spoken response word-for-word into 'transcript'.
   `;
 
   contentParts.push({ text: prompt });
 
-  const response = await ai.models.generateContent({
+  const response = await generateContentWithRetry({
     model: "gemini-2.5-flash",
     contents: contentParts,
     config: {

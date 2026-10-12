@@ -17,6 +17,7 @@ export type Database = {
       applications: {
         Row: {
           applied_at: string | null
+          company?: string | null
           company_name: string
           company_type: string | null
           created_at: string | null
@@ -29,12 +30,14 @@ export type Database = {
           job_description: string | null
           job_link: string | null
           job_title: string
+          match_score?: number | null
           matched_skills: string[] | null
           missing_skills: string[] | null
           next_action: string | null
           next_action_link: string | null
           outcome: string | null
           partial_skills: string[] | null
+          present_skills?: string[] | null
           resume_version_id: string | null
           job_id?: string | null
           resume_id?: string | null
@@ -42,10 +45,12 @@ export type Database = {
           notes?: string | null
           status: string | null
           user_id: string
+          updated_at?: string | null
         }
         Insert: {
           applied_at?: string | null
-          company_name: string
+          company?: string | null
+          company_name?: string
           company_type?: string | null
           created_at?: string | null
           critical_missing?: string[] | null
@@ -57,12 +62,14 @@ export type Database = {
           job_description?: string | null
           job_link?: string | null
           job_title: string
+          match_score?: number | null
           matched_skills?: string[] | null
           missing_skills?: string[] | null
           next_action?: string | null
           next_action_link?: string | null
           outcome?: string | null
           partial_skills?: string[] | null
+          present_skills?: string[] | null
           resume_version_id?: string | null
           job_id?: string | null
           resume_id?: string | null
@@ -70,9 +77,11 @@ export type Database = {
           notes?: string | null
           status?: string | null
           user_id: string
+          updated_at?: string | null
         }
         Update: {
           applied_at?: string | null
+          company?: string | null
           company_name?: string
           company_type?: string | null
           created_at?: string | null
@@ -85,15 +94,18 @@ export type Database = {
           job_description?: string | null
           job_link?: string | null
           job_title?: string
+          match_score?: number | null
           matched_skills?: string[] | null
           missing_skills?: string[] | null
           next_action?: string | null
           next_action_link?: string | null
           outcome?: string | null
           partial_skills?: string[] | null
+          present_skills?: string[] | null
           resume_version_id?: string | null
           status?: string | null
           user_id?: string
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -480,11 +492,23 @@ export type Database = {
           final_score: number | null
           id: string
           mode: string | null
-          questions: Json
-          started_at: string | null
-          status: string | null
-          tracks: Json | null
-          user_id: string | null
+          questions?: Json
+          started_at?: string | null
+          status?: string | null
+          tracks?: Json | null
+          user_id?: string | null
+          overall_score?: number | null
+          question_scores?: Json | null
+          completed?: boolean | null
+          created_at?: string | null
+          score?: number | null
+          duration_seconds?: number | null
+          answers?: Json | null
+          overall_feedback?: string | null
+          strengths?: string[] | null
+          weaknesses?: string[] | null
+          skills_performed_well?: string[] | null
+          skills_to_improve?: string[] | null
         }
         Insert: {
           application_id?: string | null
@@ -494,11 +518,23 @@ export type Database = {
           final_score?: number | null
           id?: string
           mode?: string | null
-          questions: Json
+          questions?: Json
           started_at?: string | null
           status?: string | null
           tracks?: Json | null
           user_id?: string | null
+          overall_score?: number | null
+          question_scores?: Json | null
+          completed?: boolean | null
+          created_at?: string | null
+          score?: number | null
+          duration_seconds?: number | null
+          answers?: Json | null
+          overall_feedback?: string | null
+          strengths?: string[] | null
+          weaknesses?: string[] | null
+          skills_performed_well?: string[] | null
+          skills_to_improve?: string[] | null
         }
         Update: {
           application_id?: string | null
@@ -513,6 +549,18 @@ export type Database = {
           status?: string | null
           tracks?: Json | null
           user_id?: string | null
+          overall_score?: number | null
+          question_scores?: Json | null
+          completed?: boolean | null
+          created_at?: string | null
+          score?: number | null
+          duration_seconds?: number | null
+          answers?: Json | null
+          overall_feedback?: string | null
+          strengths?: string[] | null
+          weaknesses?: string[] | null
+          skills_performed_well?: string[] | null
+          skills_to_improve?: string[] | null
         }
         Relationships: []
       }
@@ -1251,6 +1299,148 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_resume: {
+        Row: {
+          id: string
+          user_id: string
+          full_name: string
+          email: string
+          phone: string | null
+          location: string | null
+          linkedin: string | null
+          github: string | null
+          experiences: Json | null
+          education: Json | null
+          skills: string[] | null
+          last_updated: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          full_name: string
+          email: string
+          phone?: string | null
+          location?: string | null
+          linkedin?: string | null
+          github?: string | null
+          experiences?: Json | null
+          education?: Json | null
+          skills?: string[] | null
+          last_updated?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          full_name?: string
+          email?: string
+          phone?: string | null
+          location?: string | null
+          linkedin?: string | null
+          github?: string | null
+          experiences?: Json | null
+          education?: Json | null
+          skills?: string[] | null
+          last_updated?: string | null
+          created_at?: string | null
+        }
+        Relationships: []
+      }
+      tailored_resumes: {
+        Row: {
+          id: string
+          application_id: string | null
+          base_resume_id: string | null
+          tailored_content: Json | null
+          job_description_hash: string | null
+          resume_markdown: string | null
+          pdf_url: string | null
+          ats_score: number | null
+          match_percentage: number | null
+          created_at: string | null
+          expires_at: string | null
+        }
+        Insert: {
+          id?: string
+          application_id?: string | null
+          base_resume_id?: string | null
+          tailored_content?: Json | null
+          job_description_hash?: string | null
+          resume_markdown?: string | null
+          pdf_url?: string | null
+          ats_score?: number | null
+          match_percentage?: number | null
+          created_at?: string | null
+          expires_at?: string | null
+        }
+        Update: {
+          id?: string
+          application_id?: string | null
+          base_resume_id?: string | null
+          tailored_content?: Json | null
+          job_description_hash?: string | null
+          resume_markdown?: string | null
+          pdf_url?: string | null
+          ats_score?: number | null
+          match_percentage?: number | null
+          created_at?: string | null
+          expires_at?: string | null
+        }
+        Relationships: []
+      }
+
+      application_events: {
+        Row: {
+          id: string
+          application_id: string
+          event_type: string
+          status: string | null
+          data: Json | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          application_id: string
+          event_type: string
+          status?: string | null
+          data?: Json | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          application_id?: string
+          event_type?: string
+          status?: string | null
+          data?: Json | null
+          created_at?: string | null
+        }
+        Relationships: []
+      }
+      qa_banks: {
+        Row: {
+          id: string
+          application_id: string
+          questions: Json
+          total_questions: number | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          application_id: string
+          questions: Json
+          total_questions?: number | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          application_id?: string
+          questions?: Json
+          total_questions?: number | null
+          created_at?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {

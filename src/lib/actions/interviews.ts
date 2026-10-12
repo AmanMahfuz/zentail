@@ -20,6 +20,16 @@ export async function createInterview(
 
   if (!user) return { success: false, message: "Unauthorized" };
 
+  // Verify application belongs to user
+  const { data: app } = await supabase
+    .from("applications")
+    .select("id")
+    .eq("id", applicationId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (!app) return { success: false, message: "Application not found or unauthorized" };
+
   const { data: interview, error } = await supabase
     .from("interviews")
     .insert({
@@ -122,6 +132,7 @@ export async function getInterviewDetails(id: string) {
       created_at,
       applications (
         id,
+        user_id,
         jobs (
           company,
           title,
@@ -137,6 +148,10 @@ export async function getInterviewDetails(id: string) {
     return { success: false, error: iError, interview, message: "Failed at getInterviewDetails" };
   }
 
+  if ((interview.applications as any).user_id !== user.id) {
+    return { success: false, message: "Unauthorized" };
+  }
+
   const { data: prep, error: pError } = await supabase
     .from("interview_prep")
     .select("*")
@@ -148,6 +163,19 @@ export async function getInterviewDetails(id: string) {
 
 export async function generateAITopics(interviewId: string, jobTitle: string, company: string, description: string | null) {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, message: "Unauthorized" };
+
+  const { data: interview } = await supabase
+    .from("interviews")
+    .select("id, applications(user_id)")
+    .eq("id", interviewId)
+    .single();
+
+  if (!interview || (interview.applications as any)?.user_id !== user.id) {
+    return { success: false, message: "Unauthorized" };
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { success: false, message: "No API key" };
 
@@ -192,6 +220,10 @@ Please generate exactly 5 likely interview topics or questions I should prepare 
 }
 
 export async function evaluateAIPracticeAnswer(question: string, answer: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, message: "Unauthorized" };
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { success: false, message: "No API key" };
 
@@ -242,6 +274,19 @@ Evaluate my answer. Return a JSON object with:
 
 export async function updateChecklist(interviewId: string, checklist: any[]) {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, message: "Unauthorized" };
+
+  const { data: interview } = await supabase
+    .from("interviews")
+    .select("id, applications(user_id)")
+    .eq("id", interviewId)
+    .single();
+
+  if (!interview || (interview.applications as any)?.user_id !== user.id) {
+    return { success: false, message: "Unauthorized" };
+  }
+
   await supabase.from("interview_prep").update({ checklist }).eq("interview_id", interviewId);
   return { success: true };
 }

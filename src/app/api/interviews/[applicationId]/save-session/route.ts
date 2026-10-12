@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAuthClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function POST(
@@ -22,8 +22,10 @@ export async function POST(
       skillsToImprove = []
     } = body;
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.replace(/^Bearer\s+/i, '');
+    const supabase = token ? createAuthClient(token) : await createClient();
+    const { data: { user } } = await (token ? supabase.auth.getUser(token) : supabase.auth.getUser());
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

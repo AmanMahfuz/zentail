@@ -71,19 +71,70 @@ Return ONLY raw JSON with no Markdown wrappers matching this structure:
 }
 `;
 
-  const response = await generateContentWithRetry({
-    ai,
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      temperature: 0.3
-    }
-  });
+  let rawQuestions: any[] = [];
+  try {
+    const response = await generateContentWithRetry({
+      ai,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.3
+      }
+    });
 
-  const text = response.text || "{}";
-  const parsed = JSON.parse(text);
+    const text = response.text || "{}";
+    const parsed = JSON.parse(text);
+    rawQuestions = Array.isArray(parsed.questions) ? parsed.questions : [];
+  } catch (err) {
+    console.warn("[QAGenerator] AI generation failed or depleted, using role-targeted question generator:", err);
+  }
 
-  const rawQuestions: any[] = Array.isArray(parsed.questions) ? parsed.questions : [];
+  if (rawQuestions.length === 0) {
+    const candSkills = Array.isArray(resumeContent?.skills) ? resumeContent.skills : [];
+    const topSkills = candSkills.length > 0 ? candSkills.slice(0, 3) : ["Modern Web Tech", "Architecture", "Databases"];
+    rawQuestions = [
+      {
+        id: "q-1",
+        category: "technical",
+        difficulty: "mid",
+        question: `How do you approach debugging and optimizing performance in applications built with ${topSkills[0]}?`,
+        modelAnswer: `I systematically analyze bottlenecks using profiling tools, inspect network/render lifecycles, and implement optimizations such as caching, memoization, and lazy loading.`,
+        keyPoints: ["Profiling tools", "Root cause isolation", "Measurable performance gains"]
+      },
+      {
+        id: "q-2",
+        category: "technical",
+        difficulty: "mid",
+        question: `Can you walk me through the architecture of a production feature you built using ${topSkills[1] || topSkills[0]}?`,
+        modelAnswer: `I designed modular service layers with clear separation of concerns, ensuring decoupled data flow and comprehensive error boundaries.`,
+        keyPoints: ["Modularity", "Error handling", "Maintainability"]
+      },
+      {
+        id: "q-3",
+        category: "behavioral",
+        difficulty: "mid",
+        question: `Tell me about a time you had to balance delivery deadlines with technical quality. How did you decide what trade-offs to make?`,
+        modelAnswer: `I communicated transparently with stakeholders, prioritized core user flows, and logged necessary follow-up technical debt tickets for subsequent sprints.`,
+        keyPoints: ["Stakeholder communication", "Pragmatic trade-offs", "Ownership"]
+      },
+      {
+        id: "q-4",
+        category: "situational",
+        difficulty: "junior",
+        question: `How do you stay up to date with rapid changes in ${topSkills[0]} and related web ecosystems?`,
+        modelAnswer: `I actively review official release changelogs, build hands-on prototypes for new paradigms, and contribute to developer communities.`,
+        keyPoints: ["Continuous learning", "Practical prototyping", "Community engagement"]
+      },
+      {
+        id: "q-5",
+        category: "system_design",
+        difficulty: "senior",
+        question: `How would you design a resilient data synchronization mechanism between the client and backend for high-traffic operations?`,
+        modelAnswer: `I would utilize optimistic UI updates paired with idempotent background sync endpoints, queue retries with exponential backoff, and state reconciling.`,
+        keyPoints: ["Idempotency", "Optimistic updates", "Fault tolerance"]
+      }
+    ];
+  }
 
   const questions: QABankQuestion[] = rawQuestions.map((q, idx) => {
     const validCategories = ["technical", "behavioral", "system_design", "situational"];

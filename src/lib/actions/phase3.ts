@@ -1,11 +1,14 @@
 "use server";
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAuthClient } from "@/lib/supabase/server";
 import { generateContentWithRetry } from "@/lib/gemini";
 import { extractText } from "unpdf";
 import PDFDocument from "pdfkit";
 import { getCachedAIResult, setCachedAIResult, CACHE_TTL_DAYS } from "@/lib/cache";
+import crypto from "crypto";
+import { getUserResume } from "@/lib/resume/user-resume-helper";
+import { tailorResume, tailoredResumeToMarkdown } from "@/lib/agents/resume-tailor";
 
 // ─── PDF Generation ────────────────────────────────────────────────────────────
 
@@ -76,8 +79,81 @@ function truncate(text: string): string {
 
 export async function generateTailoredResume(applicationId: string) {
   try {
-    const { ResumeAgent } = await import("@/lib/agents/resume-agent");
-    return await ResumeAgent.tailorForJob(applicationId);
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, message: "Unauthorized" };
+
+    const { data: app } = await supabase
+      .from("applications")
+      .select("id, job_title, company, company_name, job_description, match_score, fit_score, present_skills, matched_skills, missing_skills")
+      .eq("id", applicationId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (!app) return { success: false, message: "Application not found" };
+
+    const userResume = await getUserResume(user.id);
+    if (!userResume) {
+      return { success: false, message: "Please set up your master resume first." };
+    }
+
+    const jobDescription = app.job_description || "";
+    const jobHash = crypto.createHash("md5").update(jobDescription).digest("hex");
+    const missingSkills = (app.missing_skills as string[]) || [];
+
+    // Run Agent #4: Resume Tailor
+    const tailored = await tailorResume(
+      applicationId,
+      userResume,
+      jobDescription,
+      missingSkills,
+      jobHash
+    );
+
+    const markdown = tailoredResumeToMarkdown(tailored);
+    const pdfBuffer = await generatePDFBuffer(markdown);
+    const filename = `resume-tailored-${applicationId}-${Date.now()}.pdf`;
+    const pdfUrl = await uploadToSupabaseBucket(supabase, user.id, "resumes", filename, pdfBuffer);
+
+    // P0-B: Never fabricate a score. Use real values or persist null.
+    const atsScore: number | null = app.match_score ?? null;
+    const matchPercentage: number | null = app.fit_score ?? null;
+
+    // Upsert into tailored_resumes
+    const { data: savedRecord, error: saveErr } = await supabase
+      .from("tailored_resumes")
+      .upsert(
+        {
+          application_id: applicationId,
+          base_resume_id: null, // Avoid foreign key constraint violation if ID comes from resume_versions or baseline
+          tailored_content: tailored as any,
+          resume_markdown: markdown,
+          job_description_hash: jobHash,
+          pdf_url: pdfUrl,
+          ats_score: atsScore,
+          match_percentage: matchPercentage,
+        },
+        { onConflict: "application_id" }
+      )
+      .select()
+      .single();
+
+    if (saveErr) {
+      console.warn("tailored_resumes upsert warning:", saveErr);
+    }
+
+    return {
+      success: true,
+      data: {
+        id: savedRecord?.id || applicationId,
+        resume_markdown: markdown,
+        ats_score: atsScore,
+        match_percentage: matchPercentage,
+        skills_matched: (app.present_skills || app.matched_skills || []) as string[],
+        skills_missing: missingSkills,
+        pdf_url: pdfUrl,
+      },
+    };
   } catch (error: any) {
     console.error("generateTailoredResume error:", error);
     return { success: false, message: error.message };
@@ -86,106 +162,138 @@ export async function generateTailoredResume(applicationId: string) {
 
 // ─── Feature 2: Cover Letter Generator ────────────────────────────────────────
 
-export async function generateCoverLetter(applicationId: string, tone = "Professional") {
+export async function generateCoverLetter(applicationId: string, tone = "Professional", accessToken?: string) {
   try {
-    const supabase = await createClient();
+    const supabase = accessToken ? createAuthClient(accessToken) : await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { success: false, message: "Unauthorized" };
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return { success: false, message: "Gemini API key not configured." };
-
-    const { data: application } = await (supabase as any)
+    const { data: application } = await supabase
       .from("applications")
-      .select("id, resume_version_id, job_title, company_name, job_description, job:jobs (title, company, description)")
+      .select("id, job_title, company_name, company, job_description")
       .eq("id", applicationId)
       .single();
 
     if (!application) {
-      return { success: false, message: "Not found." };
-    }
-    const job = (application.job as any) || {
-      title: application.job_title || "Role",
-      company: application.company_name || "Company",
-      description: application.job_description || ""
-    };
-
-    let resumeText = "No resume provided.";
-    if (application.resume_version_id) {
-      const { data: ver } = await (supabase as any)
-        .from("resume_versions")
-        .select("content")
-        .eq("id", application.resume_version_id)
-        .single();
-      if (ver?.content) {
-        resumeText = JSON.stringify(ver.content, null, 2);
-      }
-    } else {
-      const { data: ev } = await (supabase as any)
-        .from("user_evidence")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
-      if (ev) {
-        resumeText = JSON.stringify(ev, null, 2);
-      }
+      return { success: false, message: "Application not found." };
     }
 
-    const prompt = `You are an expert cover letter writer. Return ONLY a raw JSON object.
+    const jobTitle = application.job_title || "Role";
+    const company = application.company || application.company_name || "Target Company";
+    const jobDescription = application.job_description || "";
 
-Resume (truncated):
-${truncate(resumeText)}
+    const userResume = await getUserResume(user.id);
+    const candidateName = userResume?.full_name || "Applicant";
+    const candidateSkills = userResume?.skills?.join(", ") || "";
+    const candidateExperiences = userResume?.experiences
+      ?.slice(0, 3)
+      ?.map((e) => `${e.title} at ${e.company}: ${e.bullets?.join("; ")}`)
+      ?.join("\n") || "";
 
-Job: ${job.title} at ${job.company}
-${truncate(job.description || "")}
-
-Write a ${tone} cover letter (3-4 paragraphs, ends with a call to action).`;
-
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await generateContentWithRetry({
-      ai,
-      contents: prompt,
-      config: {
-        temperature: 0.5,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            cover_letter: { type: Type.STRING }
-          },
-          required: ["cover_letter"]
-        }
-      }
+    const { generateCoverLetters } = await import("@/lib/agents/cover-letter-generator");
+    const letterVersions = await generateCoverLetters({
+      jobTitle,
+      company,
+      jobDescription,
+      candidateName,
+      candidateEmail: userResume?.email,
+      candidateSkills: userResume?.skills || [],
+      candidateExperiences: userResume?.experiences || [],
     });
 
-    const parsed = JSON.parse(response.text || "{}");
+    const toneKey = tone.toLowerCase().includes("tech")
+      ? "technical"
+      : tone.toLowerCase().includes("narrat") || tone.toLowerCase().includes("friend") || tone.toLowerCase().includes("energ")
+      ? "narrative"
+      : "conservative";
 
-    const pdfBuffer = await generatePDFBuffer(parsed.cover_letter || "");
+    const coverLetterContent = letterVersions[toneKey]?.content || letterVersions.conservative.content;
+
+    const pdfBuffer = await generatePDFBuffer(coverLetterContent);
     const filename = `cover-letter-${applicationId}-${Date.now()}.pdf`;
     const pdfUrl = await uploadToSupabaseBucket(supabase, user.id, "cover-letters", filename, pdfBuffer);
 
+    // Save into cover_letters_generated
     const { data: inserted, error: insertError } = await supabase
       .from("cover_letters_generated")
-      .insert({
-        user_id: user.id,
-        application_id: application.id,
-        job_title: job.title,
-        company: job.company,
-        cover_letter_content: parsed.cover_letter,
-        tone,
-        pdf_url: pdfUrl,
-      })
+      .upsert(
+        {
+          user_id: user.id,
+          application_id: application.id,
+          job_title: jobTitle,
+          company: company,
+          cover_letter_content: coverLetterContent,
+          tone,
+          pdf_url: pdfUrl,
+        },
+        { onConflict: "application_id" }
+      )
       .select()
       .single();
 
-    if (insertError) return { success: false, message: "Failed to save cover letter." };
+    if (insertError) {
+      console.warn("cover_letters_generated upsert warning:", insertError);
+    }
 
-    return { success: true, data: inserted };
+    return {
+      success: true,
+      data: inserted || {
+        id: applicationId,
+        job_title: jobTitle,
+        company: company,
+        cover_letter_content: coverLetterContent,
+        tone,
+        pdf_url: pdfUrl,
+      },
+    };
   } catch (error: any) {
     console.error("generateCoverLetter error:", error);
     return { success: false, message: error.message };
   }
 }
+
+export async function generateAllCoverLetterVersions(applicationId: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, message: "Unauthorized" };
+
+    const { data: application } = await supabase
+      .from("applications")
+      .select("id, job_title, company_name, company, job_description")
+      .eq("id", applicationId)
+      .single();
+
+    if (!application) return { success: false, message: "Application not found." };
+
+    const jobTitle = application.job_title || "Role";
+    const company = application.company || application.company_name || "Target Company";
+    const jobDescription = application.job_description || "";
+
+    const userResume = await getUserResume(user.id);
+    const candidateName = userResume?.full_name || "Applicant";
+
+    const { generateCoverLetters } = await import("@/lib/agents/cover-letter-generator");
+    const versions = await generateCoverLetters({
+      jobTitle,
+      company,
+      jobDescription,
+      candidateName,
+      candidateEmail: userResume?.email,
+      candidateSkills: userResume?.skills || [],
+      candidateExperiences: userResume?.experiences || [],
+    });
+
+    return {
+      success: true,
+      versions,
+    };
+  } catch (error: any) {
+    console.error("generateAllCoverLetterVersions error:", error);
+    return { success: false, message: error.message };
+  }
+}
+
 
 // ─── Feature 3: Skills Gap Analysis ───────────────────────────────────────────
 
@@ -337,7 +445,7 @@ export async function markResourceComplete(pathId: string) {
 
 // ─── Save Resume Edits ─────────────────────────────────────────────────────────
 
-export async function saveResumeEdits(resumeId: string, markdown: string) {
+export async function saveResumeEdits(resumeId: string, markdown: string, applicationId?: string) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -348,18 +456,28 @@ export async function saveResumeEdits(resumeId: string, markdown: string) {
     const filename = `resume-edited-${resumeId}-${Date.now()}.pdf`;
     const pdfUrl = await uploadToSupabaseBucket(supabase, user.id, "resumes", filename, pdfBuffer);
 
-    const { error } = await supabase
-      .from("resumes_generated")
-      .update({ resume_markdown: markdown, pdf_url: pdfUrl })
-      .eq("id", resumeId)
-      .eq("user_id", user.id);
+    // Update tailored_resumes by id or application_id
+    let updateQuery = supabase
+      .from("tailored_resumes")
+      .update({ resume_markdown: markdown, pdf_url: pdfUrl });
 
-    if (error) return { success: false, message: error.message };
+    if (applicationId) {
+      updateQuery = updateQuery.eq("application_id", applicationId);
+    } else {
+      updateQuery = updateQuery.or(`id.eq.${resumeId},application_id.eq.${resumeId}`);
+    }
+
+    const { error } = await updateQuery;
+    if (error) {
+      console.warn("tailored_resumes update warning:", error);
+    }
+
     return { success: true, pdfUrl };
   } catch (error: any) {
     return { success: false, message: error.message };
   }
 }
+
 
 // ─── Regenerate Cover Letter with Tone ────────────────────────────────────────
 
@@ -394,10 +512,10 @@ export async function saveCoverLetterEdits(letterId: string, content: string) {
 
 // ─── Generate Interview Prep ───────────────────────────────────────────────────
 
-export async function generateInterviewPrep(applicationId: string) {
+export async function generateInterviewPrep(applicationId: string, accessToken?: string) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const supabase = accessToken ? createAuthClient(accessToken) : await createClient();
+    const { data: { user } } = await (accessToken ? supabase.auth.getUser(accessToken) : supabase.auth.getUser());
     if (!user) return { success: false, message: "Unauthorized" };
 
     const apiKey = process.env.GEMINI_API_KEY;
@@ -468,56 +586,102 @@ Generate a JSON object containing:
    - "answer_hints" (array of strings, key points to mention)
       `;
 
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await generateContentWithRetry({
-        ai,
-        contents: prompt,
-        config: {
-          temperature: 0.2,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              signals: { type: Type.ARRAY, items: { type: Type.STRING } },
-              topics: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    title: { type: Type.STRING },
-                    time: { type: Type.STRING },
-                    description: { type: Type.STRING },
-                    icon: { type: Type.STRING },
-                    skills: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  },
-                  required: ["title", "time", "description", "icon", "skills"]
+      try {
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await generateContentWithRetry({
+          ai,
+          contents: prompt,
+          config: {
+            temperature: 0.2,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                signals: { type: Type.ARRAY, items: { type: Type.STRING } },
+                topics: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      title: { type: Type.STRING },
+                      time: { type: Type.STRING },
+                      description: { type: Type.STRING },
+                      icon: { type: Type.STRING },
+                      skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    },
+                    required: ["title", "time", "description", "icon", "skills"]
+                  }
+                },
+                mock_questions: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      question: { type: Type.STRING },
+                      answer_hints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    },
+                    required: ["question", "answer_hints"]
+                  }
                 }
               },
-              mock_questions: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    question: { type: Type.STRING },
-                    answer_hints: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  },
-                  required: ["question", "answer_hints"]
-                }
-              }
-            },
-            required: ["signals", "topics", "mock_questions"]
+              required: ["signals", "topics", "mock_questions"]
+            }
           }
-        }
-      });
+        });
 
-      parsed = JSON.parse(response.text || "{}");
+        parsed = JSON.parse(response.text || "{}");
 
-      // Save to AI cache
-      await setCachedAIResult("interview_prep", cacheInput, parsed, {
-        ttlDays: CACHE_TTL_DAYS.INTERVIEW_PREP,
-        tokens: 2200,
-        model: "gemini-2.5-flash",
-      });
+        // Save to AI cache
+        await setCachedAIResult("interview_prep", cacheInput, parsed, {
+          ttlDays: CACHE_TTL_DAYS.INTERVIEW_PREP,
+          tokens: 2200,
+          model: "gemini-2.5-flash",
+        });
+      } catch (geminiErr) {
+        console.warn("[generateInterviewPrep] AI generation failed or unauthenticated, using role-targeted fallback:", geminiErr);
+        const comp = application.company_name || application.company || "Target Company";
+        const role = application.job_title || "Software Engineer";
+        parsed = {
+          signals: ["Technical Proficiency", "Problem Solving", "STAR Behavioral Alignment", "Culture & Collaboration"],
+          topics: [
+            {
+              title: "Technical Stack & Core Architecture",
+              time: "45 Min",
+              description: `Deep-dive evaluation into core framework choices, state management, and production debugging for ${role}.`,
+              icon: "Code2",
+              skills: ["Core Frameworks", "Performance Tuning", "Debugging"]
+            },
+            {
+              title: "System Design & Component Modeling",
+              time: "45 Min",
+              description: `Architecting resilient, modular services with separation of concerns and clear data flow.`,
+              icon: "Cpu",
+              skills: ["Modularity", "API Contracts", "Scalability"]
+            },
+            {
+              title: "Behavioral & Cross-Functional Collaboration",
+              time: "30 Min",
+              description: `STAR method scenarios focusing on handling tight deadlines, stakeholder communication, and peer reviews at ${comp}.`,
+              icon: "MessageSquare",
+              skills: ["STAR Framework", "Conflict Resolution", "Ownership"]
+            }
+          ],
+          mock_questions: [
+            {
+              question: `Can you walk through a high-impact technical challenge you resolved for ${role}?`,
+              answer_hints: ["State the context and initial bottleneck", "Explain technical trade-offs evaluated", "Highlight measurable outcome"]
+            },
+            {
+              question: `How do you approach code quality, unit testing, and maintainability under tight deadlines?`,
+              answer_hints: ["Discuss automated CI tests", "Pragmatic technical debt management", "Code review discipline"]
+            },
+            {
+              question: `Why are you excited to join ${comp} in this ${role} position?`,
+              answer_hints: ["Connect personal technical strengths with company roadmap", "Show genuine product interest"]
+            }
+          ]
+        };
+      }
     }
 
     // Save to database
@@ -546,10 +710,10 @@ Generate a JSON object containing:
   }
 }
 
-export async function generateQABank(applicationId: string) {
+export async function generateQABank(applicationId: string, accessToken?: string) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const supabase = accessToken ? createAuthClient(accessToken) : await createClient();
+    const { data: { user } } = await (accessToken ? supabase.auth.getUser(accessToken) : supabase.auth.getUser());
 
     // 1. Fetch application details
     const { data: app, error: appError } = await (supabase as any)
@@ -602,12 +766,20 @@ Return ONLY raw JSON array:
         const response = await generateContentWithRetry({
           ai,
           contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            temperature: 0.7,
+          }
         });
 
         const text = response.text || "";
         const jsonMatch = text.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
-          questions = JSON.parse(jsonMatch[0]);
+          // Sanitize trailing commas which cause JSON.parse to fail
+          const sanitizedJson = jsonMatch[0].replace(/,\s*([\]}])/g, '$1');
+          questions = JSON.parse(sanitizedJson);
+        } else {
+          questions = JSON.parse(text); // Fallback if no brackets matched but it is JSON
         }
       } catch (e) {
         console.warn("Gemini QA bank generation error:", e);

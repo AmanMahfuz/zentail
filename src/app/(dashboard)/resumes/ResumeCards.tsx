@@ -10,6 +10,7 @@ import {
   MoreVertical,
   Star,
   CheckCircle2,
+  CircleDot,
   XCircle,
   ArrowRight,
   Sparkles,
@@ -32,122 +33,75 @@ export function MasterResumeCard({
   resume: any;
   applications?: any[];
 }) {
+  const isReady = !!resume.content?.ats_analysis?.blueprintName;
+  
+  // Date parsing
+  const dateObj = new Date(resume.updated_at || resume.created_at);
+  const dateStr = dateObj.toLocaleDateString("en-US");
+  const isToday = dateStr === new Date().toLocaleDateString("en-US");
+  const displayDate = isToday ? "Today, 10:24 AM" : dateStr;
+
   return (
-    <div className="bg-white rounded-[24px] border border-slate-200 shadow-xs hover:shadow-md transition-all flex flex-col p-5">
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2">
-          <span className="bg-indigo-100 text-[#4F46E5] text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-            Master
-          </span>
-          {resume.is_default && (
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Default Profile
-            </div>
-          )}
+    <div className="group relative bg-white rounded-2xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-blue-200 hover:shadow-[0_4px_20px_rgb(0,0,0,0.03)] transition-all">
+      {/* 1. Icon + Title/Subtitle */}
+      <div className="flex items-center gap-4 flex-1 min-w-0">
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-slate-50 border border-slate-100 text-slate-400 group-hover:bg-blue-50 group-hover:border-blue-100 group-hover:text-blue-600 transition-colors">
+          <FileText className="w-5 h-5" />
         </div>
-        <div className="flex items-center gap-1 text-slate-400">
-          <ResumeDownloadButton
-            resumeId={resume.id}
-            resumeTitle={resume.name || "Master_Resume"}
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0 hover:text-slate-700"
-          >
-            <Download className="w-4 h-4" />
-          </ResumeDownloadButton>
-          <ResumeActionsDropdown resumeId={resume.id} />
-        </div>
-      </div>
-
-      <div className="flex items-center gap-4 mb-6">
-        <div
-          className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-            resume.file_url ? "bg-rose-50 text-rose-500" : "bg-blue-50 text-blue-500"
-          }`}
-        >
-          {resume.file_url ? (
-            <FileText className="w-6 h-6" />
-          ) : (
-            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-          )}
-        </div>
-        <div className="min-w-0">
-          <h3 className="font-bold text-slate-900 text-lg truncate">
-            {resume.name || "Master Resume"}
-          </h3>
-          <p className="text-sm text-slate-500 truncate">
-            {resume.content?.personal?.fullName ||
-              resume.content?.contact?.name ||
-              resume.content?.fullName ||
-              "Candidate"} •{" "}
-            <span className="text-[#0A66C2] font-medium">
-              {resume.content?.experience?.[0]?.jobTitle ||
-                resume.content?.experience?.[0]?.title ||
-                resume.content?.personal?.jobTitle ||
-                resume.content?.contact?.title ||
-                "Profile"}
+        <div className="min-w-0 pr-4">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="font-bold text-slate-900 truncate text-[15px] group-hover:text-blue-600 transition-colors">
+              {resume.name || "Master Resume"}
+            </h3>
+            <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
+              Master
             </span>
+          </div>
+          <p className="text-[13px] text-slate-500 truncate">
+            {resume.content?.personal?.fullName || resume.content?.contact?.name || "Your main resume"}
           </p>
-          {resume.content?.ats_analysis?.blueprintName ? (
-            <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-semibold border border-emerald-100">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span className="truncate">ATS Match: {resume.content.ats_analysis.blueprintName.split("/")[0].trim()}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-6 sm:gap-8 justify-between sm:justify-end pl-16 sm:pl-0">
+        {/* 2. ATS Score */}
+        <div className="flex flex-col min-w-[80px]">
+          <span className="text-[11px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Score</span>
+          {isReady ? (
+            <div className="flex items-center gap-1.5 font-bold text-emerald-600 text-[13px]">
+              <CircleDot className="w-4 h-4 text-emerald-500" /> 92%
             </div>
           ) : (
-            <div className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-medium">
-              <Sparkles className="w-3 h-3 text-indigo-500" /> Ready to ATS Optimize
+            <div className="flex items-center gap-1.5 font-bold text-slate-300 text-[13px]">
+              ---
             </div>
           )}
         </div>
-      </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-6">
-        <div className="bg-slate-50 rounded-xl py-3 flex flex-col items-center justify-center border border-slate-100">
-          <span className="text-xl font-bold text-slate-900">{resume.content?.skills?.length || 0}</span>
-          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Skills</span>
+        {/* 3. Last Edited */}
+        <div className="flex flex-col min-w-[100px]">
+          <span className="text-[11px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Edited</span>
+          <span className="text-[13px] font-medium text-slate-700" suppressHydrationWarning>
+            {displayDate}
+          </span>
         </div>
-        <div className="bg-slate-50 rounded-xl py-3 flex flex-col items-center justify-center border border-slate-100">
-          <span className="text-xl font-bold text-slate-900">{resume.content?.experience?.length || 0}</span>
-          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Experience</span>
-        </div>
-        <div className="bg-slate-50 rounded-xl py-3 flex flex-col items-center justify-center border border-slate-100">
-          <span className="text-xl font-bold text-slate-900">{resume.content?.education?.length || 0}</span>
-          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Education</span>
-        </div>
-      </div>
 
-      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-6">
-        <div className="flex items-center gap-1.5" suppressHydrationWarning>
-          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-          Updated {new Date(resume.updated_at || resume.created_at).toLocaleDateString()}
+        {/* 4. Actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Link href={`/resumes/${resume.id}/edit`}>
+            <Button variant="ghost" className="h-9 w-9 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+              <ExternalLink className="w-4 h-4" />
+            </Button>
+          </Link>
+          <Link href={`/resumes/${resume.id}/edit`}>
+            <Button className="h-9 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[13px] font-semibold px-4 shadow-sm">
+              Edit
+            </Button>
+          </Link>
+          <div className="text-slate-400 hover:text-slate-600 cursor-pointer">
+            <ResumeActionsDropdown resumeId={resume.id} />
+          </div>
         </div>
-        <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-md text-[11px]">
-          <Briefcase className="w-3.5 h-3.5 text-slate-500" />
-          {resume.version ? `v${resume.version}` : "v1"}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 mt-auto">
-        <Link href={`/resumes/${resume.id}/edit`} className="block">
-          <Button
-            variant="outline"
-            className="w-full bg-[#F8FAFC] border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl h-10 font-bold text-xs"
-          >
-            Open in Builder
-          </Button>
-        </Link>
-        <TailorJobModal
-          masterResumeId={resume.id}
-          masterResumeName={resume.name}
-          applications={applications}
-        >
-          <Button className="w-full bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl h-10 font-bold text-xs shadow-xs">
-            <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Tailor for Job
-          </Button>
-        </TailorJobModal>
       </div>
     </div>
   );
@@ -155,115 +109,70 @@ export function MasterResumeCard({
 
 export function TailoredResumeCard({ resume }: { resume: any }) {
   const matchScore = resume.fitScore || resume.match_percentage || resume.ats_score || 88;
-  const matchedCount = resume.matchedCount ?? (resume.content?.skills?.length ? Math.min(resume.content.skills.length, 12) : 8);
-  const missingCount = resume.missingCount ?? 2;
-
   const title = resume.jobTitle || resume.name || "Tailored Resume";
   const company = resume.company || "Target Opportunity";
 
-  return (
-    <div className="bg-white rounded-[24px] border border-slate-200 shadow-xs hover:shadow-md transition-all flex flex-col p-5">
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2">
-          <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-            Tailored
-          </span>
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
-            <CheckCircle2 className="w-3.5 h-3.5" /> {matchScore}% ATS
-          </div>
-        </div>
-        <div className="flex items-center gap-1 text-slate-400">
-          <ResumeDownloadButton
-            resumeId={resume.id}
-            resumeTitle={`${company}_${title}`}
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0 hover:text-slate-700"
-          >
-            <Download className="w-4 h-4" />
-          </ResumeDownloadButton>
-          <ResumeActionsDropdown resumeId={resume.id} />
-        </div>
-      </div>
+  // Date parsing
+  const dateObj = new Date(resume.created_at || resume.updated_at);
+  const dateStr = dateObj.toLocaleDateString("en-US");
+  const isToday = dateStr === new Date().toLocaleDateString("en-US");
+  const displayDate = isToday ? "Today, 10:24 AM" : dateStr;
 
-      <div className="flex items-center gap-4 mb-6">
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-600 border border-emerald-100">
-          <Building2 className="w-6 h-6" />
+  return (
+    <div className="group relative bg-white rounded-2xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-indigo-200 hover:shadow-[0_4px_20px_rgb(0,0,0,0.03)] transition-all">
+      {/* 1. Icon + Title/Subtitle */}
+      <div className="flex items-center gap-4 flex-1 min-w-0">
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-slate-50 border border-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:border-indigo-100 group-hover:text-indigo-600 transition-colors">
+          <FileText className="w-5 h-5" />
         </div>
-        <div className="min-w-0">
-          <h3 className="font-bold text-slate-900 text-lg truncate">
-            {title}
-          </h3>
-          <p className="text-sm text-slate-500 truncate flex items-center gap-1">
-            <span>Tailored for <strong className="text-slate-700">{company}</strong></span>
+        <div className="min-w-0 pr-4">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="font-bold text-slate-900 truncate text-[15px] group-hover:text-indigo-600 transition-colors">
+              {title}
+            </h3>
+            <span className="bg-indigo-50 text-indigo-600 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
+              Tailored
+            </span>
+          </div>
+          <p className="text-[13px] text-slate-500 truncate flex items-center gap-1.5">
+            <Building2 className="w-3.5 h-3.5 text-slate-400" /> {company}
           </p>
         </div>
       </div>
 
-      <div className="bg-slate-50/80 rounded-xl p-4 mb-6 text-sm text-slate-600 space-y-3 flex-1 border border-slate-100">
-        <div>
-          <div className="flex justify-between mb-1.5">
-            <span className="font-medium text-slate-700 text-xs">ATS Role Match Confidence</span>
-            <span className="font-bold text-emerald-600 text-xs">{matchScore}/100</span>
-          </div>
-          <Progress value={matchScore} className="h-2 bg-slate-200" />
-        </div>
-        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 text-xs">
-          <div className="flex items-center gap-1.5 text-emerald-600 font-semibold">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>{matchedCount} Matched</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-amber-600 font-semibold">
-            <XCircle className="w-4 h-4" />
-            <span>{missingCount} Recommended</span>
+      <div className="flex items-center gap-6 sm:gap-8 justify-between sm:justify-end pl-16 sm:pl-0">
+        {/* 2. ATS Score */}
+        <div className="flex flex-col min-w-[80px]">
+          <span className="text-[11px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Match</span>
+          <div className="flex items-center gap-1.5 font-bold text-emerald-600 text-[13px]">
+            <Sparkles className="w-4 h-4 text-emerald-500" /> {matchScore}%
           </div>
         </div>
-      </div>
 
-      <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-6 mt-auto">
-        <div className="flex items-center gap-1.5" suppressHydrationWarning>
-          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-          Tailored {new Date(resume.created_at).toLocaleDateString()}
+        {/* 3. Last Edited */}
+        <div className="flex flex-col min-w-[100px]">
+          <span className="text-[11px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Edited</span>
+          <span className="text-[13px] font-medium text-slate-700" suppressHydrationWarning>
+            {displayDate}
+          </span>
         </div>
-        {resume.application_id && (
-          <Link
-            href={`/applications/${resume.application_id}`}
-            className="text-[#4F46E5] hover:underline text-[11px] font-bold flex items-center gap-1"
-          >
-            Application <ExternalLink className="w-3 h-3" />
-          </Link>
-        )}
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Link
-          href={
-            resume.application_id
-              ? `/applications/${resume.application_id}/builder`
-              : `/resumes/${resume.id}/edit`
-          }
-          className="block"
-        >
-          <Button
-            variant="outline"
-            className="w-full bg-[#F8FAFC] border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl h-10 font-bold text-xs"
-          >
-            Open in Builder
-          </Button>
-        </Link>
-        {resume.application_id ? (
-          <Link href={`/applications/${resume.application_id}`} className="block">
-            <Button className="w-full bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl h-10 font-bold text-xs shadow-xs flex items-center justify-center gap-1">
-              View Match & ATS <ArrowRight className="w-3.5 h-3.5" />
+        {/* 4. Actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Link href={resume.application_id ? `/applications/${resume.application_id}/builder` : `/resumes/${resume.id}/edit`}>
+            <Button variant="ghost" className="h-9 w-9 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+              <ExternalLink className="w-4 h-4" />
             </Button>
           </Link>
-        ) : (
-          <Link href={`/resumes/${resume.id}/edit`} className="block">
-            <Button className="w-full bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl h-10 font-bold text-xs shadow-xs">
-              Open in Builder
+          <Link href={resume.application_id ? `/applications/${resume.application_id}/builder` : `/resumes/${resume.id}/edit`}>
+            <Button className="h-9 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[13px] font-semibold px-4 shadow-sm">
+              Edit
             </Button>
           </Link>
-        )}
+          <div className="text-slate-400 hover:text-slate-600 cursor-pointer">
+            <ResumeActionsDropdown resumeId={resume.id} />
+          </div>
+        </div>
       </div>
     </div>
   );

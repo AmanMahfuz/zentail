@@ -38,8 +38,8 @@ export default async function proxy(request: NextRequest) {
   const isAuthRoute = pathname.startsWith('/signin') || pathname.startsWith('/signup')
   const isProtectedRoute = pathname.startsWith('/dashboard') || 
                            pathname.startsWith('/applications') ||
-                           pathname.startsWith('/onboarding') ||
                            pathname.startsWith('/resumes') ||
+                           pathname.startsWith('/resume') ||
                            pathname.startsWith('/interviews') ||
                            pathname.startsWith('/jobs') ||
                            pathname.startsWith('/settings') ||

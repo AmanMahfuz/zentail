@@ -127,25 +127,14 @@ export default function ProfileBuilderPage() {
   const [portfolioUrl, setPortfolioUrl] = useState("");
 
   // Step 2: Target
-  const [targetRole, setTargetRole] = useState("Full Stack Developer");
+  const [targetRole, setTargetRole] = useState("");
   const [workType, setWorkType] = useState<"Remote" | "Hybrid" | "On-site">("Remote");
 
   // Step 3: Education
-  const [educations, setEducations] = useState<EducationItem[]>([
-    { id: "1", degree: "B.Tech Computer Science", institution: "State University", graduationYear: "2025", specialization: "Software Engineering" }
-  ]);
+  const [educations, setEducations] = useState<EducationItem[]>([]);
 
   // Step 4: Projects
-  const [projects, setProjects] = useState<ProjectItem[]>([
-    {
-      id: "1",
-      title: "Interactive Web Application",
-      description: "Built a responsive full-stack platform with user authentication, real-time dashboard analytics, and REST API integration.",
-      techStack: ["React", "TypeScript", "Tailwind CSS", "Supabase"],
-      githubUrl: "",
-      liveUrl: ""
-    }
-  ]);
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [newProjectTech, setNewProjectTech] = useState<{ [id: string]: string }>({});
 
   // Step 5: Experience
@@ -153,13 +142,7 @@ export default function ProfileBuilderPage() {
   const [newExpTech, setNewExpTech] = useState<{ [id: string]: string }>({});
 
   // Step 6: Skills
-  const [skills, setSkills] = useState<SkillItem[]>([
-    { name: "JavaScript", proficiency: "Proficient" },
-    { name: "TypeScript", proficiency: "Proficient" },
-    { name: "React", proficiency: "Proficient" },
-    { name: "Tailwind CSS", proficiency: "Proficient" },
-    { name: "Git", proficiency: "Familiar" }
-  ]);
+  const [skills, setSkills] = useState<SkillItem[]>([]);
   const [customSkillInput, setCustomSkillInput] = useState("");
 
   // Step 7: Achievements & Certifications
@@ -188,19 +171,21 @@ export default function ProfileBuilderPage() {
       }
     });
 
-    const storedJd = sessionStorage.getItem("pending_jd") || DEFAULT_JD;
+    const storedJd = sessionStorage.getItem("pending_jd") || sessionStorage.getItem("pendingJobDesc") || "";
     setJd(storedJd);
 
-    // Quick extraction of role/company from JD text
-    const lines = storedJd.split("\n");
-    let detectedRole = "";
-    let detectedCompany = "";
-    for (const l of lines) {
-      if (/role:|title:/i.test(l)) detectedRole = l.replace(/role:|title:/i, "").trim();
-      if (/company:/i.test(l)) detectedCompany = l.replace(/company:/i, "").trim();
+    if (storedJd) {
+      // Quick extraction of role/company from JD text
+      const lines = storedJd.split("\n");
+      let detectedRole = "";
+      let detectedCompany = "";
+      for (const l of lines) {
+        if (/role:|title:/i.test(l)) detectedRole = l.replace(/role:|title:/i, "").trim();
+        if (/company:/i.test(l)) detectedCompany = l.replace(/company:/i, "").trim();
+      }
+      if (detectedRole) setTargetRole(detectedRole);
+      setExtractedJdInfo({ role: detectedRole, company: detectedCompany });
     }
-    if (detectedRole) setTargetRole(detectedRole);
-    setExtractedJdInfo({ role: detectedRole, company: detectedCompany });
   }, [supabase]);
 
   // ─── AI Bullet Polisher ────────────────────────────────────────────────────
@@ -306,29 +291,35 @@ export default function ProfileBuilderPage() {
         category: classifySkillName(s.name),
         proficiency: s.proficiency.toLowerCase()
       })),
-      projects: projects.map(p => ({
-        title: p.title,
-        description: p.description,
-        techStack: p.techStack,
-        githubUrl: p.githubUrl || null,
-        liveUrl: p.liveUrl || null
-      })),
-      experience: experiences.map(e => ({
-        jobTitle: e.jobTitle,
-        company: e.company,
-        employmentType: e.employmentType,
-        startDate: e.startDate,
-        endDate: e.currentlyWorking ? "Present" : e.endDate,
-        currentlyWorking: e.currentlyWorking,
-        description: e.description,
-        skillsUsed: e.skillsUsed
-      })),
-      education: educations.map(ed => ({
-        degree: ed.degree,
-        institution: ed.institution,
-        graduationYear: ed.graduationYear,
-        specialization: ed.specialization || ""
-      })),
+      projects: projects
+        .filter(p => p.title.trim() || p.description.trim())
+        .map(p => ({
+          title: p.title,
+          description: p.description,
+          techStack: p.techStack,
+          githubUrl: p.githubUrl || null,
+          liveUrl: p.liveUrl || null
+        })),
+      experience: experiences
+        .filter(e => e.jobTitle.trim() || e.company.trim())
+        .map(e => ({
+          jobTitle: e.jobTitle,
+          company: e.company,
+          employmentType: e.employmentType,
+          startDate: e.startDate,
+          endDate: e.currentlyWorking ? "Present" : e.endDate,
+          currentlyWorking: e.currentlyWorking,
+          description: e.description,
+          skillsUsed: e.skillsUsed
+        })),
+      education: educations
+        .filter(ed => ed.degree.trim() || ed.institution.trim())
+        .map(ed => ({
+          degree: ed.degree,
+          institution: ed.institution,
+          graduationYear: ed.graduationYear,
+          specialization: ed.specialization || ""
+        })),
       achievements,
       certifications
     };
@@ -346,6 +337,11 @@ export default function ProfileBuilderPage() {
   const executeSubmission = async () => {
     setIsSubmitting(true);
     const profile = buildProfileObject();
+    const effectiveJd = jd.trim() || (targetRole.trim() ? `Target Role: ${targetRole.trim()}` : "Target Role: Software Engineer");
+
+    // Clear pending JD keys from storage
+    sessionStorage.removeItem("pending_jd");
+    sessionStorage.removeItem("pendingJobDesc");
 
     try {
       const res = await fetch("/api/applications/create-from-landing", {
@@ -357,15 +353,15 @@ export default function ProfileBuilderPage() {
             origin_type: "wizard_profile",
             isBuilt: true
           },
-          jobDescription: jd,
+          jobDescription: effectiveJd,
           analysis: {
             fitScore: auditResult?.fitScore || 78,
-            jobTitle: auditResult?.jobTitle || targetRole,
-            company: auditResult?.company || extractedJdInfo.company || "Target Company",
+            jobTitle: auditResult?.jobTitle || targetRole || "Software Engineer",
+            company: auditResult?.company || extractedJdInfo.company || "Target Opportunity",
             verdict: auditResult?.verdict || "Structured profile matched against target requirements.",
             matched: auditResult?.matchedSkills || skills.slice(0, 3).map(s => s.name),
             partial: skills.slice(3, 5).map(s => s.name),
-            missing: auditResult?.missingSkills || ["Cloud Deployment"],
+            missing: auditResult?.missingSkills || [],
             improvements: auditResult?.recommendations || ["Highlight key project outcomes in interview rounds."]
           },
           originType: "built"
@@ -744,78 +740,100 @@ export default function ProfileBuilderPage() {
             </div>
 
             <div className="space-y-4">
-              {educations.map((edu, idx) => (
-                <div key={edu.id} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3 relative">
-                  {educations.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setEducations(educations.filter(e => e.id !== edu.id))}
-                      className="absolute top-4 right-4 text-slate-400 hover:text-red-500"
-                      title="Remove education"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+              {educations.length === 0 ? (
+                <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50 space-y-3">
+                  <GraduationCap className="w-8 h-8 text-slate-400 mx-auto" />
+                  <p className="text-sm font-semibold text-slate-700">No education entries added yet</p>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Add your university, college, or current degree program.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setEducations([{
+                      id: String(Date.now()),
+                      degree: "",
+                      institution: "",
+                      graduationYear: ""
+                    }])}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3.5 py-2 rounded-xl transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> + Add Education
+                  </button>
+                </div>
+              ) : (
+                educations.map((edu, idx) => (
+                  <div key={edu.id} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3 relative">
+                    {educations.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setEducations(educations.filter(e => e.id !== edu.id))}
+                        className="absolute top-4 right-4 text-slate-400 hover:text-red-500"
+                        title="Remove education"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Degree / Program</label>
-                      <input
-                        type="text"
-                        value={edu.degree}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setEducations(prev => prev.map(ed => ed.id === edu.id ? { ...ed, degree: val } : ed));
-                        }}
-                        placeholder="e.g. MCA, B.Tech Computer Science"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      />
-                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Degree / Program</label>
+                        <input
+                          type="text"
+                          value={edu.degree}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEducations(prev => prev.map(ed => ed.id === edu.id ? { ...ed, degree: val } : ed));
+                          }}
+                          placeholder="e.g. MCA, B.Tech Computer Science"
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        />
+                      </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">College / University</label>
-                      <input
-                        type="text"
-                        value={edu.institution}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setEducations(prev => prev.map(ed => ed.id === edu.id ? { ...ed, institution: val } : ed));
-                        }}
-                        placeholder="e.g. Jai Bharath College of Management"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      />
-                    </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">College / University</label>
+                        <input
+                          type="text"
+                          value={edu.institution}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEducations(prev => prev.map(ed => ed.id === edu.id ? { ...ed, institution: val } : ed));
+                          }}
+                          placeholder="e.g. State University"
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        />
+                      </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Graduation Year (or Range)</label>
-                      <input
-                        type="text"
-                        value={edu.graduationYear}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setEducations(prev => prev.map(ed => ed.id === edu.id ? { ...ed, graduationYear: val } : ed));
-                        }}
-                        placeholder="e.g. 2025 - 2027"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      />
-                    </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Graduation Year (or Range)</label>
+                        <input
+                          type="text"
+                          value={edu.graduationYear}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEducations(prev => prev.map(ed => ed.id === edu.id ? { ...ed, graduationYear: val } : ed));
+                          }}
+                          placeholder="e.g. 2025 - 2027"
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        />
+                      </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Specialization / GPA (Optional)</label>
-                      <input
-                        type="text"
-                        value={edu.specialization || ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setEducations(prev => prev.map(ed => ed.id === edu.id ? { ...ed, specialization: val } : ed));
-                        }}
-                        placeholder="e.g. Artificial Intelligence, 3.8 GPA"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      />
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Specialization / GPA (Optional)</label>
+                        <input
+                          type="text"
+                          value={edu.specialization || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEducations(prev => prev.map(ed => ed.id === edu.id ? { ...ed, specialization: val } : ed));
+                          }}
+                          placeholder="e.g. Artificial Intelligence, 3.8 GPA"
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         )}
@@ -845,7 +863,28 @@ export default function ProfileBuilderPage() {
             </div>
 
             <div className="space-y-5">
-              {projects.map((proj, idx) => (
+              {projects.length === 0 ? (
+                <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50 space-y-3">
+                  <Code2 className="w-8 h-8 text-slate-400 mx-auto" />
+                  <p className="text-sm font-semibold text-slate-700">No projects added yet</p>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Projects demonstrate your real-world technical skills and architecture knowledge.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setProjects([{
+                      id: String(Date.now()),
+                      title: "",
+                      description: "",
+                      techStack: []
+                    }])}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3.5 py-2 rounded-xl transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> + Add First Project
+                  </button>
+                </div>
+              ) : (
+                projects.map((proj, idx) => (
                 <div key={proj.id} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/40 space-y-4 relative">
                   {projects.length > 1 && (
                     <button
@@ -983,7 +1022,8 @@ export default function ProfileBuilderPage() {
                     </div>
                   </div>
                 </div>
-              ))}
+              ))
+            )}
             </div>
           </div>
         )}

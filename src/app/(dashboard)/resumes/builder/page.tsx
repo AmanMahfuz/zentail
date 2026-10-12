@@ -1,20 +1,27 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ResumeBuilderClient from "./ResumeBuilderClient";
-import { mapToBuilderResumeData } from "@/lib/resume/map-resume-data";
+import { mapToBuilderResumeData, parseMarkdownToBuilderResumeData } from "@/lib/resume/map-resume-data";
+import { getUserResume, formatResumeToMarkdown } from "@/lib/resume/user-resume-helper";
 import { TemplateId } from "@/types/resume-builder";
-
 import { getAtsBlueprint } from "@/config/ats-templates";
 
 export default async function ResumeBuilderPage(props: {
-  searchParams?: Promise<{ resumeId?: string; template?: string; loadSample?: string; scratch?: string; importProfile?: string }>;
+  searchParams?: Promise<{
+    resumeId?: string;
+    template?: string;
+    loadSample?: string;
+    scratch?: string;
+    importProfile?: string;
+    applicationId?: string;
+  }>;
 }) {
   const searchParams = await props.searchParams;
   const targetResumeId = searchParams?.resumeId;
   const initialTemplate = searchParams?.template as TemplateId | undefined;
   const shouldLoadSample = searchParams?.loadSample === "true";
   const isScratch = searchParams?.scratch === "true";
-  const importProfile = searchParams?.importProfile === "true";
+  const applicationId = searchParams?.applicationId;
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -23,8 +30,96 @@ export default async function ResumeBuilderPage(props: {
     redirect("/signin");
   }
 
-  // 1. Fetch targeted or user's newest/latest resume from resume_versions
-  let activeVersion = null;
+  let applicationInfo: { company?: string; jobTitle?: string } | undefined = undefined;
+  let activeVersion: any = null;
+  let userEvidence: any = null;
+  let versionLabel = "Primary Resume";
+
+  // Case A: Loaded for an Application (Tailored visual canvas)
+  if (applicationId && !isScratch) {
+    const { data: appData } = await (supabase as any)
+      .from("applications")
+      .select("*")
+      .eq("id", applicationId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (appData) {
+      applicationInfo = {
+        company: appData.company || appData.company_name || "Target Company",
+        jobTitle: appData.job_title || "Target Role",
+      };
+      versionLabel = `Tailored for ${applicationInfo.jobTitle} @ ${applicationInfo.company}`;
+    }
+
+    // Check tailored_resumes
+    const { data: tailoredRecord } = await (supabase as any)
+      .from("tailored_resumes")
+      .select("*")
+      .eq("application_id", applicationId)
+      .maybeSingle();
+
+    let initialData = mapToBuilderResumeData({
+      userMetadata: user.user_metadata,
+      userEmail: user.email,
+    });
+
+    if (tailoredRecord) {
+      let md = tailoredRecord.resume_markdown;
+      if (!md && tailoredRecord.tailored_content) {
+        const { tailoredResumeToMarkdown } = await import("@/lib/agents/resume-tailor");
+        md = tailoredResumeToMarkdown(tailoredRecord.tailored_content as any);
+      }
+      if (md) {
+        const parsed = parseMarkdownToBuilderResumeData(md);
+        initialData = {
+          ...initialData,
+          ...parsed,
+          contact: {
+            ...initialData.contact,
+            ...(parsed.contact || {}),
+            name: parsed.contact?.name || user.user_metadata?.full_name || initialData.contact.name,
+            email: parsed.contact?.email || user.email || initialData.contact.email,
+          },
+        };
+      }
+    } else {
+      // Fallback: load candidate master profile
+      const masterProfile = await getUserResume(user.id);
+      if (masterProfile) {
+        const masterMd = formatResumeToMarkdown(masterProfile);
+        const parsed = parseMarkdownToBuilderResumeData(masterMd);
+        initialData = {
+          ...initialData,
+          ...parsed,
+          contact: {
+            ...initialData.contact,
+            ...(parsed.contact || {}),
+            name: masterProfile.full_name || initialData.contact.name,
+            email: masterProfile.email || initialData.contact.email,
+            phone: masterProfile.phone || initialData.contact.phone,
+            location: masterProfile.location || initialData.contact.location,
+            linkedin: masterProfile.linkedin || initialData.contact.linkedin,
+            github: masterProfile.github || initialData.contact.github,
+          },
+        };
+      }
+    }
+
+    return (
+      <ResumeBuilderClient
+        initialData={initialData}
+        hasExistingData={true}
+        versionLabel={versionLabel}
+        resumeId={tailoredRecord?.id || applicationId}
+        initialTemplate={initialTemplate}
+        applicationId={applicationId}
+        applicationInfo={applicationInfo}
+      />
+    );
+  }
+
+  // Case B: General Resume Builder (Master profile / version history / scratch / sample)
   if (targetResumeId && !isScratch) {
     const { data: specificVersion } = await (supabase as any)
       .from("resume_versions")
@@ -47,8 +142,6 @@ export default async function ResumeBuilderPage(props: {
     activeVersion = latestVersion;
   }
 
-  // 2. Fetch user's evidence profile if available
-  let userEvidence = null;
   if (!isScratch) {
     const { data: evidence } = await (supabase as any)
       .from("user_evidence")
@@ -72,6 +165,32 @@ export default async function ResumeBuilderPage(props: {
     userEmail: user.email,
   });
 
+  // If no resume_versions found and not scratch, hydrate from user's active Career Profile (user_resume)
+  if (!activeVersion && !isScratch) {
+    const masterProfile = await getUserResume(user.id);
+    if (masterProfile && (masterProfile.experiences?.length > 0 || masterProfile.skills?.length > 0)) {
+      const masterMd = formatResumeToMarkdown(masterProfile);
+      const parsed = parseMarkdownToBuilderResumeData(masterMd);
+      initialData = {
+        ...initialData,
+        ...parsed,
+        contact: {
+          ...initialData.contact,
+          ...(parsed.contact || {}),
+          name: masterProfile.full_name || initialData.contact.name,
+          email: masterProfile.email || initialData.contact.email,
+          phone: masterProfile.phone || initialData.contact.phone,
+          location: masterProfile.location || initialData.contact.location,
+          linkedin: masterProfile.linkedin || initialData.contact.linkedin,
+          github: masterProfile.github || initialData.contact.github,
+        },
+      };
+      versionLabel = `Master Profile — ${masterProfile.full_name}`;
+    }
+  } else if (activeVersion) {
+    versionLabel = activeVersion.version_label || "Master Resume";
+  }
+
   // If scratching, let's make sure it's completely empty!
   if (isScratch) {
     initialData = {
@@ -93,6 +212,7 @@ export default async function ResumeBuilderPage(props: {
       projects: [],
       certifications: [],
     };
+    versionLabel = "New Blank Resume";
   }
 
   if (shouldLoadSample && initialTemplate) {
@@ -120,7 +240,7 @@ export default async function ResumeBuilderPage(props: {
     <ResumeBuilderClient
       initialData={initialData}
       hasExistingData={hasExistingData}
-      versionLabel={activeVersion?.version_label}
+      versionLabel={versionLabel}
       resumeId={activeVersion?.id}
       initialTemplate={initialTemplate}
     />

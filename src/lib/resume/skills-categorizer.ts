@@ -53,6 +53,21 @@ const TOOLS_CLOUD_KEYWORDS = new Set([
 export function categorizeSkills(rawSkills: any[]): CategorizedSkillGroup[] {
   if (!Array.isArray(rawSkills) || rawSkills.length === 0) return [];
 
+  // If already cleanly categorized with valid categories and items, preserve user's structure!
+  const isAlreadyCategorized = rawSkills.every(
+    (s: any) => s && typeof s === "object" && typeof s.category === "string" && (typeof s.items === "string" || Array.isArray(s.items))
+  );
+  if (isAlreadyCategorized && rawSkills.length > 0) {
+    const valid = rawSkills
+      .map((s: any) => ({
+        id: s.id || uid(),
+        category: s.category.trim(),
+        items: Array.isArray(s.items) ? s.items.join(", ") : String(s.items || "").trim(),
+      }))
+      .filter((s: any) => s.category && s.items);
+    if (valid.length > 0) return valid;
+  }
+
   const languages: string[] = [];
   const frameworks: string[] = [];
   const backend: string[] = [];
@@ -64,45 +79,57 @@ export function categorizeSkills(rawSkills: any[]): CategorizedSkillGroup[] {
 
   for (const item of rawSkills) {
     if (!item) continue;
-    let name = "";
+    const itemSubList: string[] = [];
     let userCategory = "";
 
     if (typeof item === "string") {
-      name = item.trim();
+      itemSubList.push(item);
     } else if (typeof item === "object") {
-      name = (item.name || item.skill || item.title || item.skill_name || "").trim();
+      if (item.items) {
+        if (typeof item.items === "string") {
+          itemSubList.push(...item.items.split(","));
+        } else if (Array.isArray(item.items)) {
+          itemSubList.push(...item.items);
+        }
+      } else {
+        const n = (item.name || item.skill || item.title || item.skill_name || "").trim();
+        if (n) itemSubList.push(n);
+      }
       if (item.category && item.category.toLowerCase() !== "core" && item.category.toLowerCase() !== "general") {
         userCategory = item.category.trim();
       }
     }
 
-    if (!name || seen.has(name.toLowerCase())) continue;
-    seen.add(name.toLowerCase());
+    for (const rawName of itemSubList) {
+      const name = rawName.trim();
+      if (!name || seen.has(name.toLowerCase())) continue;
+      seen.add(name.toLowerCase());
 
-    const lower = name.toLowerCase();
+      const lower = name.toLowerCase();
 
-    // If user provided a specific non-generic category (e.g. "Cloud & DevOps"), honor it
-    if (userCategory && !["core", "general", "other", "all"].includes(userCategory.toLowerCase())) {
-      const formattedCat = userCategory.charAt(0).toUpperCase() + userCategory.slice(1);
-      if (!customCategories.has(formattedCat)) customCategories.set(formattedCat, []);
-      customCategories.get(formattedCat)!.push(name);
-      continue;
-    }
+      // If user provided a specific non-generic category (e.g. "Cloud & DevOps"), honor it
+      if (userCategory && !["core", "general", "other", "all"].includes(userCategory.toLowerCase())) {
+        const formattedCat = userCategory.charAt(0).toUpperCase() + userCategory.slice(1);
+        if (!customCategories.has(formattedCat)) customCategories.set(formattedCat, []);
+        customCategories.get(formattedCat)!.push(name);
+        continue;
+      }
 
-    // Auto-classify by keyword
-    if (LANGUAGE_KEYWORDS.has(lower)) {
-      languages.push(name);
-    } else if (FRAMEWORK_KEYWORDS.has(lower)) {
-      frameworks.push(name);
-    } else if (BACKEND_API_KEYWORDS.has(lower)) {
-      backend.push(name);
-    } else if (DATABASE_KEYWORDS.has(lower)) {
-      databases.push(name);
-    } else if (TOOLS_CLOUD_KEYWORDS.has(lower)) {
-      tools.push(name);
-    } else {
-      // Default fallback grouping
-      tools.push(name);
+      // Auto-classify by keyword
+      if (LANGUAGE_KEYWORDS.has(lower)) {
+        languages.push(name);
+      } else if (FRAMEWORK_KEYWORDS.has(lower)) {
+        frameworks.push(name);
+      } else if (BACKEND_API_KEYWORDS.has(lower)) {
+        backend.push(name);
+      } else if (DATABASE_KEYWORDS.has(lower)) {
+        databases.push(name);
+      } else if (TOOLS_CLOUD_KEYWORDS.has(lower)) {
+        tools.push(name);
+      } else {
+        // Default fallback grouping
+        tools.push(name);
+      }
     }
   }
 

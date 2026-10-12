@@ -169,7 +169,7 @@ function OnboardingContent() {
 
       let parsed: any = null;
       let analysis: any = null;
-      const storedJd = sessionStorage.getItem("pending_jd") || "";
+      const storedJd = sessionStorage.getItem("pending_jd") || sessionStorage.getItem("pendingJobDesc") || "";
 
       try { parsed = JSON.parse(sessionStorage.getItem("parsed_resume") || "null"); } catch {}
       try { analysis = JSON.parse(sessionStorage.getItem("analysis_result") || "null"); } catch {}
@@ -293,7 +293,7 @@ function OnboardingContent() {
   };
 
   const clearSession = () => {
-    ["pending_jd","parsed_resume","analysis_result","additional_skills","onboarding_path","interview_transcript"]
+    ["pending_jd","pendingJobDesc","parsed_resume","analysis_result","additional_skills","onboarding_path","interview_transcript"]
       .forEach(k => sessionStorage.removeItem(k));
   };
 
@@ -303,7 +303,11 @@ function OnboardingContent() {
 
     let parsed: any = null;
     try { parsed = JSON.parse(sessionStorage.getItem("parsed_resume") || "null"); } catch {}
-    const pendingJD = sessionStorage.getItem("pending_jd") || targetJd;
+    const pendingJD = sessionStorage.getItem("pending_jd") || sessionStorage.getItem("pendingJobDesc") || targetJd;
+    // Clear pending JD from storage immediately to prevent duplicate application submissions
+    sessionStorage.removeItem("pending_jd");
+    sessionStorage.removeItem("pendingJobDesc");
+
     let analysis: any = null;
     try { analysis = JSON.parse(sessionStorage.getItem("analysis_result") || "null"); } catch {}
     if (!analysis && analysisResult) analysis = analysisResult;
@@ -338,7 +342,25 @@ function OnboardingContent() {
       if (projectsError) console.warn("Projects insert warning:", projectsError);
     }
 
-    setSaveStep("Building your master resume...");
+    setSaveStep("Building your master resume & career profile...");
+    // 1. Persist to user_resume (canonical single source of truth for Career Profile)
+    const { error: masterResumeError } = await (supabase.from("user_resume") as any).upsert({
+      user_id: userId,
+      full_name: resumeData.name || name || "User",
+      email: resumeData.email || email || userEmail || "",
+      phone: resumeData.phone || "",
+      location: resumeData.location || "",
+      linkedin: resumeData.linkedin || "",
+      github: resumeData.github || "",
+      experiences: resumeData.experience || resumeData.experiences || [],
+      education: resumeData.education || [],
+      skills: allSkills,
+      projects: resumeData.projects || [],
+      last_updated: new Date().toISOString()
+    }, { onConflict: "user_id" });
+    if (masterResumeError) console.warn("user_resume upsert notice:", masterResumeError);
+
+    // 2. Insert into resume_versions
     const { data: newResume, error: resumeError } = await (supabase.from("resume_versions") as any).insert({
       user_id: userId,
       version_label: `${resumeData.name || name || "Master"} Resume`,

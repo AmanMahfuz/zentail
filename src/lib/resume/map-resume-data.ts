@@ -7,6 +7,7 @@ import {
   ProjectItem,
 } from "@/types/resume-builder";
 import { categorizeSkills } from "./skills-categorizer";
+import { parseDateRange } from "./date-utils";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
@@ -31,6 +32,7 @@ export function parseMarkdownToBuilderResumeData(markdown: string): Partial<Buil
   const experience: ExperienceItem[] = [];
   const projects: ProjectItem[] = [];
   const education: EducationItem[] = [];
+  const certifications: any[] = [];
 
   let currentExp: Partial<ExperienceItem> | null = null;
   let currentProj: Partial<ProjectItem> | null = null;
@@ -55,6 +57,7 @@ export function parseMarkdownToBuilderResumeData(markdown: string): Partial<Buil
           id: uid(),
           company: currentExp.company || "",
           title: currentExp.title || "Role",
+          location: currentExp.location || "",
           startDate: currentExp.startDate || "",
           endDate: currentExp.endDate || "",
           current: !!currentExp.current,
@@ -127,6 +130,7 @@ export function parseMarkdownToBuilderResumeData(markdown: string): Partial<Buil
             id: uid(),
             company: currentExp.company || "",
             title: currentExp.title || "Role",
+            location: currentExp.location || "",
             startDate: currentExp.startDate || "",
             endDate: currentExp.endDate || "",
             current: !!currentExp.current,
@@ -157,8 +161,8 @@ export function parseMarkdownToBuilderResumeData(markdown: string): Partial<Buil
         currentExp = {
           title,
           company,
-          startDate: dates.split(/[-–]/)[0]?.trim() || "",
-          endDate: isCurrent ? "Present" : dates.split(/[-–]/)[1]?.trim() || "",
+          startDate: dates.split(/[-–—]| to /i)[0]?.trim() || "",
+          endDate: isCurrent ? "Present" : dates.split(/[-–—]| to /i)[1]?.trim() || "",
           current: isCurrent,
           bullets: [],
         };
@@ -169,7 +173,23 @@ export function parseMarkdownToBuilderResumeData(markdown: string): Partial<Buil
           currentExp.bullets.push(bullet);
         }
       } else if (currentExp) {
-        currentExp.description = (currentExp.description ? currentExp.description + " " : "") + line;
+        // Check if this line is the date / location line right below the title header
+        const dateRangeRegex = /(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}\/\d{4}|\b20\d\d\b|\b19\d\d\b).*?(?:[-–—to\s]+.*?(?:present|current|\b20\d\d\b|\b19\d\d\b|\d{1,2}\/\d{4}))/i;
+        if (!currentExp.startDate && (dateRangeRegex.test(line) || /^\d{4}\s*[-–—]\s*(?:\d{4}|present)/i.test(line))) {
+          let dateStr = line;
+          if (line.includes("|")) {
+            const [dPart, locPart] = line.split("|").map(s => s.trim());
+            dateStr = dPart;
+            if (locPart && !currentExp.location) currentExp.location = locPart;
+          }
+          const isCurr = /present|current/i.test(dateStr);
+          const parts = dateStr.split(/[-–—]| to /i).map(s => s.trim());
+          currentExp.startDate = parts[0] || "";
+          currentExp.endDate = isCurr ? "Present" : (parts[1] || "");
+          currentExp.current = isCurr;
+        } else {
+          currentExp.description = (currentExp.description ? currentExp.description + " " : "") + line;
+        }
       }
       continue;
     }
@@ -219,6 +239,12 @@ export function parseMarkdownToBuilderResumeData(markdown: string): Partial<Buil
           currentProj.bullets = currentProj.bullets || [];
           currentProj.bullets.push(bullet);
         }
+      } else if (currentProj) {
+        if (!currentProj.url && (line.includes("http") || line.includes("github"))) {
+          currentProj.url = line.trim();
+        } else if (!currentProj.tech && (line.toLowerCase().startsWith("technologies:") || line.toLowerCase().startsWith("tech:"))) {
+          currentProj.tech = line.replace(/^(?:technologies|tech):\s*/i, "").trim();
+        }
       }
       continue;
     }
@@ -250,6 +276,35 @@ export function parseMarkdownToBuilderResumeData(markdown: string): Partial<Buil
         startDate: "",
         endDate: endYear,
       });
+      continue;
+    }
+
+    // Inside Certifications & Credentials
+    if (currentSection.includes("cert") || currentSection.includes("credential")) {
+      const cleanCert = line.replace(/^[-•*]\s*/, "").replace(/^###\s*/, "").trim();
+      let certName = cleanCert;
+      let issuer = "";
+      let date = "";
+
+      const yrMatch = cleanCert.match(/\((.*?)\)|(\b20\d\d\b)/);
+      if (yrMatch) {
+        date = (yrMatch[1] || yrMatch[2] || "").trim();
+        certName = cleanCert.replace(yrMatch[0], "").trim();
+      }
+
+      if (certName.includes("—") || certName.includes("-") || certName.includes(" from ") || certName.includes(" by ")) {
+        const parts = certName.split(/[—\-]| from | by /);
+        certName = (parts[0] || "").trim();
+        issuer = (parts[1] || "").trim();
+      }
+
+      certifications.push({
+        id: uid(),
+        name: certName,
+        issuer,
+        date,
+      });
+      continue;
     }
   }
 
@@ -259,6 +314,7 @@ export function parseMarkdownToBuilderResumeData(markdown: string): Partial<Buil
       id: uid(),
       company: currentExp.company || "",
       title: currentExp.title || "Role",
+      location: currentExp.location || "",
       startDate: currentExp.startDate || "",
       endDate: currentExp.endDate || "",
       current: !!currentExp.current,
@@ -315,6 +371,7 @@ export function parseMarkdownToBuilderResumeData(markdown: string): Partial<Buil
     experience,
     projects,
     education,
+    certifications,
   };
 }
 
@@ -440,14 +497,19 @@ export function mapToBuilderResumeData({
     .filter((e: any) => (e.title || e.jobTitle || e.job_title || e.company))
     .map((e: any) => {
       const bullets = extractCleanBullets(e);
+      const rawDateStr = e.period || e.duration || e.date || e.dates || "";
+      const parsedDates = rawDateStr ? parseDateRange(rawDateStr) : { startDate: "", endDate: "", current: false };
+      const startDate = e.startDate || e.start_date || parsedDates.startDate || "";
+      const endDate = e.endDate || e.end_date || parsedDates.endDate || "";
+      const current = !!(e.current || e.isCurrent || e.is_current || parsedDates.current || (endDate.toLowerCase() === "present"));
       return {
         id: e.id || uid(),
         company: e.company || "",
         title: e.title || e.jobTitle || e.job_title || e.position || "",
         location: (e.location && e.location.toLowerCase() !== "remote") ? e.location : "",
-        startDate: e.startDate || e.start_date || "",
-        endDate: e.endDate || e.end_date || "",
-        current: !!(e.current || e.isCurrent || e.is_current),
+        startDate,
+        endDate,
+        current,
         bullets,
         description: bullets.length === 1 ? bullets[0] : (e.description || bullets.join("\n")),
       };
@@ -465,15 +527,21 @@ export function mapToBuilderResumeData({
   // 4. Education
   let education: EducationItem[] = [];
   if (Array.isArray(content.education) && content.education.length > 0) {
-    education = content.education.map((ed: any) => ({
-      id: ed.id || uid(),
-      school: ed.school || ed.institution || ed.university || ed.college || "",
-      degree: ed.degree || "",
-      field: ed.field || ed.fieldOfStudy || ed.specialization || ed.major || "",
-      startDate: ed.startDate ? String(ed.startDate) : ed.startYear ? String(ed.startYear) : "",
-      endDate: ed.endDate ? String(ed.endDate) : ed.endYear ? String(ed.endYear) : ed.isCurrent ? "Present" : "",
-      gpa: ed.gpa || ed.grade || "",
-    }));
+    education = content.education.map((ed: any) => {
+      const rawEdDate = ed.period || ed.duration || ed.date || ed.year || ed.graduationDate || ed.graduation_year || "";
+      const parsedEdDates = rawEdDate ? parseDateRange(String(rawEdDate)) : { startDate: "", endDate: "", current: false };
+      const startDate = ed.startDate ? String(ed.startDate) : ed.startYear ? String(ed.startYear) : parsedEdDates.startDate || "";
+      const endDate = ed.endDate ? String(ed.endDate) : ed.endYear ? String(ed.endYear) : ed.isCurrent ? "Present" : parsedEdDates.endDate || "";
+      return {
+        id: ed.id || uid(),
+        school: ed.school || ed.institution || ed.university || ed.college || "",
+        degree: ed.degree || "",
+        field: ed.field || ed.fieldOfStudy || ed.specialization || ed.major || "",
+        startDate,
+        endDate,
+        gpa: ed.gpa || ed.grade || "",
+      };
+    });
   } else if (Array.isArray(userEvidence?.evidence_education) && userEvidence.evidence_education.length > 0) {
     education = userEvidence.evidence_education.map((ed: any) => ({
       id: ed.id || uid(),
@@ -517,7 +585,7 @@ export function mapToBuilderResumeData({
     });
 
   // 7. Certifications, Languages, Achievements
-  const certifications = Array.isArray(content.certifications)
+  let certifications = Array.isArray(content.certifications)
     ? content.certifications.map((c: any) => ({
         id: c.id || uid(),
         name: c.name || "",
@@ -552,7 +620,7 @@ export function mapToBuilderResumeData({
     content.text ||
     "";
 
-  if (rawMarkdown && (experience.length === 0 || skills.length === 0 || education.length === 0 || projects.length === 0)) {
+  if (rawMarkdown && (experience.length === 0 || skills.length === 0 || education.length === 0 || projects.length === 0 || certifications.length === 0)) {
     const parsed = parseMarkdownToBuilderResumeData(rawMarkdown);
     if (experience.length === 0 && parsed.experience && parsed.experience.length > 0) {
       experience = parsed.experience;
@@ -565,6 +633,9 @@ export function mapToBuilderResumeData({
     }
     if (projects.length === 0 && parsed.projects && parsed.projects.length > 0) {
       projects = parsed.projects;
+    }
+    if (certifications.length === 0 && parsed.certifications && parsed.certifications.length > 0) {
+      certifications = parsed.certifications;
     }
     if (!summary && parsed.summary) {
       summary = parsed.summary;
@@ -635,25 +706,25 @@ export function canonicalizeResumeData(data: BuilderResumeData): any {
   return {
     ...data,
     contact: {
-      name: data.contact?.name || "",
-      title: data.contact?.title || "",
-      email: data.contact?.email || "",
-      phone: data.contact?.phone || "",
-      location: data.contact?.location || "",
-      linkedin: data.contact?.linkedin || "",
-      portfolio: data.contact?.portfolio || "",
-      github: data.contact?.github || "",
-      website: data.contact?.website || data.contact?.portfolio || "",
+      name: data.contact?.name || (data as any).personal?.fullName || (data as any).name || "",
+      title: data.contact?.title || (data as any).personal?.jobTitle || (data as any).title || "",
+      email: data.contact?.email || (data as any).personal?.email || (data as any).email || "",
+      phone: data.contact?.phone || (data as any).personal?.phone || (data as any).phone || "",
+      location: data.contact?.location || (data as any).personal?.location || (data as any).location || "",
+      linkedin: data.contact?.linkedin || (data as any).personal?.linkedinUrl || (data as any).personal?.linkedin || "",
+      portfolio: data.contact?.portfolio || (data as any).personal?.portfolioUrl || (data as any).personal?.portfolio || "",
+      github: data.contact?.github || (data as any).personal?.githubUrl || (data as any).personal?.github || "",
+      website: data.contact?.website || data.contact?.portfolio || (data as any).personal?.portfolioUrl || "",
     },
     personal: {
-      fullName: data.contact?.name || "",
-      jobTitle: data.contact?.title || "",
-      email: data.contact?.email || "",
-      phone: data.contact?.phone || "",
-      location: data.contact?.location || "",
-      linkedinUrl: data.contact?.linkedin || "",
-      githubUrl: data.contact?.github || "",
-      portfolioUrl: data.contact?.portfolio || "",
+      fullName: data.contact?.name || (data as any).personal?.fullName || (data as any).name || "",
+      jobTitle: data.contact?.title || (data as any).personal?.jobTitle || (data as any).title || "",
+      email: data.contact?.email || (data as any).personal?.email || (data as any).email || "",
+      phone: data.contact?.phone || (data as any).personal?.phone || (data as any).phone || "",
+      location: data.contact?.location || (data as any).personal?.location || (data as any).location || "",
+      linkedinUrl: data.contact?.linkedin || (data as any).personal?.linkedinUrl || (data as any).personal?.linkedin || "",
+      githubUrl: data.contact?.github || (data as any).personal?.githubUrl || (data as any).personal?.github || "",
+      portfolioUrl: data.contact?.portfolio || (data as any).personal?.portfolioUrl || (data as any).personal?.portfolio || "",
     },
     summary: data.summary || "",
     experience: (data.experience || []).map((exp) => ({

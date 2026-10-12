@@ -8,6 +8,7 @@ import {
   ProjectItem,
 } from "@/types/resume-builder";
 import { getAtsBlueprint, ATS_BLUEPRINT_RULES } from "@/config/ats-templates";
+import { parseDateRange } from "@/lib/resume/date-utils";
 
 export interface ProfileAnalysisResult {
   careerStage: "entry-level" | "experienced" | "hybrid";
@@ -173,21 +174,22 @@ export function convertResumeToAtsBlueprint(
 
   // 2. Summary
   let summary = rawContent?.summary || "";
-  if (!summary && blueprintConfig) {
-    summary = blueprintConfig.sampleData.summary;
-  }
 
   // 3. Education
   const rawEdu = Array.isArray(rawContent?.education) ? rawContent.education : [];
-  const education: EducationItem[] = rawEdu.map((edu: any, i: number) => ({
-    id: edu.id || `edu-${i}-${uid()}`,
-    school: edu.institution || edu.school || edu.university || "University",
-    degree: edu.degree || "Bachelor of Science",
-    field: edu.fieldOfStudy || edu.field || edu.specialization || "Computer Science",
-    startDate: String(edu.startYear || edu.startDate || ""),
-    endDate: String(edu.endYear || edu.endDate || edu.graduationYear || ""),
-    gpa: edu.grade || edu.gpa || undefined,
-  }));
+  const education: EducationItem[] = rawEdu.map((edu: any, i: number) => {
+    const rawEdDate = edu.period || edu.duration || edu.date || edu.year || edu.graduationDate || edu.graduationYear || "";
+    const parsedEdDates = rawEdDate ? parseDateRange(String(rawEdDate)) : { startDate: "", endDate: "", current: false };
+    return {
+      id: edu.id || `edu-${i}-${uid()}`,
+      school: edu.institution || edu.school || edu.university || "",
+      degree: edu.degree || "",
+      field: edu.fieldOfStudy || edu.field || edu.specialization || "",
+      startDate: String(edu.startYear || edu.startDate || parsedEdDates.startDate || ""),
+      endDate: String(edu.endYear || edu.endDate || edu.graduationYear || parsedEdDates.endDate || ""),
+      gpa: edu.grade || edu.gpa || undefined,
+    };
+  });
 
   // 4. Skills Categorization
   const rawSkills = Array.isArray(rawContent?.skills) ? rawContent.skills : [];
@@ -234,10 +236,6 @@ export function convertResumeToAtsBlueprint(
     }
   }
 
-  if (skills.length === 0 && blueprintConfig) {
-    skills = blueprintConfig.sampleData.skills;
-  }
-
   // 5. Experience
   const rawExp = Array.isArray(rawContent?.experience) ? rawContent.experience : [];
   const experience: ExperienceItem[] = rawExp.map((exp: any, i: number) => {
@@ -251,15 +249,18 @@ export function convertResumeToAtsBlueprint(
     // Clean bullet formatting (no checkmarks, no emojis)
     bullets = bullets.map((b) => b.replace(/^[-*•✔]\s*/, "").trim());
 
+    const rawExpDate = exp.period || exp.duration || exp.date || exp.dates || "";
+    const parsedExpDates = rawExpDate ? parseDateRange(rawExpDate) : { startDate: "", endDate: "", current: false };
+
     return {
       id: exp.id || `exp-${i}-${uid()}`,
-      company: exp.company || exp.company_name || "Company",
-      title: exp.jobTitle || exp.title || "Software Developer",
+      company: exp.company || exp.company_name || "",
+      title: exp.jobTitle || exp.title || exp.position || "Role",
       location: exp.location || "",
-      startDate: String(exp.startDate || exp.start_date || ""),
-      endDate: String(exp.endDate || exp.end_date || (exp.isCurrent ? "Present" : "")),
-      current: Boolean(exp.isCurrent || exp.currentlyWorking || exp.current),
-      bullets: bullets.length > 0 ? bullets : ["Delivered core feature capabilities and system enhancements."],
+      startDate: String(exp.startDate || exp.start_date || parsedExpDates.startDate || ""),
+      endDate: String(exp.endDate || exp.end_date || (exp.isCurrent ? "Present" : parsedExpDates.endDate || "")),
+      current: Boolean(exp.isCurrent || exp.currentlyWorking || exp.current || parsedExpDates.current),
+      bullets,
     };
   });
 

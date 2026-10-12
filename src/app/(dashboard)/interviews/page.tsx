@@ -1,12 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Zap,
   TrendingUp,
   Book,
   AlertCircle,
   Loader2,
+  Mic,
+  MessageSquare,
+  ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InterviewModal } from '@/components/interviews/InterviewModal';
@@ -242,14 +246,38 @@ function ApplicationCard({
       </div>
 
       {/* Footer */}
-      <div className="bg-slate-50 border-t border-slate-200 p-4">
-        <Button
-          onClick={onSelect}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-        >
-          <Zap className="w-4 h-4 mr-2" />
-          Start Interview
-        </Button>
+      <div className="bg-slate-50 border-t border-slate-200 p-4 space-y-2.5">
+        <div className="grid grid-cols-2 gap-2">
+          <Link
+            href={`/interviews/prepare/${app.id}?mode=voice`}
+            className="flex items-center justify-center gap-1.5 py-2 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition shadow-2xs"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Mic className="w-3.5 h-3.5" /> Voice Sim
+          </Link>
+          <Link
+            href={`/interviews/prepare/${app.id}?mode=text`}
+            className="flex items-center justify-center gap-1.5 py-2 px-3 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 rounded-xl text-xs font-bold transition shadow-2xs"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-blue-600" /> Text Practice
+          </Link>
+        </div>
+        <div className="flex items-center justify-between pt-1">
+          <Link
+            href={`/applications/${app.id}`}
+            className="text-[11px] font-semibold text-slate-500 hover:text-slate-900 flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Job Hub <ExternalLink className="w-3 h-3" />
+          </Link>
+          <button
+            onClick={onSelect}
+            className="text-[11px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
+          >
+            All Modes & Q&A →
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -272,15 +300,20 @@ function InterviewsLoadingSkeleton() {
 
 function NoApplicationsState() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-8">
-      <div className="text-center">
-        <AlertCircle className="w-12 h-12 text-amber-600 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">No Applications Yet</h2>
-        <p className="text-slate-600 mb-6">
-          Save a job application to start practicing interviews.
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="bg-white rounded-3xl border border-slate-200 p-8 sm:p-10 max-w-md text-center shadow-xs space-y-4">
+        <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto">
+          <Zap className="w-6 h-6" />
+        </div>
+        <h2 className="text-xl font-black text-slate-900">No Interview Sessions Yet</h2>
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Interview practice is tailored directly to your target jobs. Once you track an application, your AI Agent automatically drafts 15 role-specific questions and simulates mock rehearsals.
         </p>
-        <Button onClick={() => window.location.href = '/applications'} className="bg-blue-600 hover:bg-blue-700 text-white">
-          Browse Jobs
+        <Button
+          onClick={() => window.location.href = '/applications'}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-3 rounded-xl cursor-pointer"
+        >
+          Go to Applications Workspace →
         </Button>
       </div>
     </div>

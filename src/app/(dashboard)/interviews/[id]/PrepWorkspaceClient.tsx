@@ -12,9 +12,37 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HardwarePreflight } from "../../applications/[id]/interview/components/HardwarePreflight";
 import { InterviewHero } from "../../applications/[id]/interview/components/InterviewHero";
 import { PipelineCountdown } from "../../applications/[id]/interview/components/PipelineCountdown";
+import { InterviewContextCard } from "../../applications/[id]/interview/components/InterviewContextCard";
 
 export default function PrepWorkspaceClient({ interview, prep }: { interview?: any; prep?: any }) {
   const [activeTab, setActiveTab] = useState("topics");
+
+  const jobTitle =
+    interview?.applications?.jobs?.title ||
+    interview?.applications?.job_title ||
+    "Target Role";
+  const company =
+    interview?.applications?.jobs?.company ||
+    interview?.applications?.company_name ||
+    "Target Company";
+
+  const scheduleData = interview
+    ? {
+        round: interview.round,
+        status:
+          interview.prep_status ||
+          (interview.scheduled_at ? "Confirmed" : "Scheduled"),
+        scheduledAt: interview.scheduled_at,
+        platform: interview.notes
+          ? interview.notes.includes("Meet")
+            ? "Google Meet"
+            : interview.notes.includes("Zoom")
+            ? "Zoom"
+            : null
+          : null,
+        notes: interview.notes,
+      }
+    : null;
   
   const tabs = [
     { id: "topics", label: "AI Topics", icon: BrainCircuit },
@@ -51,8 +79,10 @@ export default function PrepWorkspaceClient({ interview, prep }: { interview?: a
         {/* Left Column (Main Content) - 70% */}
         <div className="lg:col-span-8 space-y-6">
           <InterviewHero 
-            jobTitle={"Full Stack Developer Intern"} 
-            company={"F6 IT Services Private Limited"} 
+            jobTitle={jobTitle} 
+            company={company} 
+            schedule={scheduleData}
+            applicationId={interview?.application_id}
           />
 
           <div className="space-y-6">
@@ -87,61 +117,8 @@ export default function PrepWorkspaceClient({ interview, prep }: { interview?: a
 
         {/* Right Column (Sidebar) - 30% */}
         <div className="lg:col-span-4 space-y-6">
-          <PipelineCountdown />
-          
-          <Card className="border-slate-200 shadow-sm mb-6">
-            <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Info className="w-4 h-4 text-indigo-500" />
-                Interview Context
-              </CardTitle>
-              <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-none px-2 py-0.5 text-[10px] tracking-wider uppercase">
-                Confirmed
-              </Badge>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-5">
-              <div className="space-y-1">
-                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                  Format & Type
-                </h4>
-                <p className="text-sm text-slate-800">
-                  {interview.interview_type} (60 min) — Live Coding & Architecture
-                </p>
-              </div>
-              <div className="space-y-1">
-                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                  Application Status
-                </h4>
-                <div className="flex items-center gap-1.5 text-sm text-slate-800">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  Interview Round {interview.round} of 3
-                </div>
-              </div>
-              <div className="space-y-1">
-                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                  Host Platform
-                </h4>
-                <p className="text-sm text-slate-800">
-                  Google Meet (Code shared via CollabPad)
-                </p>
-              </div>
-              <div className="space-y-2">
-                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                  Attached Resume
-                </h4>
-                <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-100 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-red-500 shrink-0" />
-                    <span className="text-xs font-medium text-slate-700 truncate max-w-[150px]">
-                      Aman_Resume_FullStack.pdf
-                    </span>
-                  </div>
-                  <Download className="w-4 h-4 text-slate-400 cursor-pointer hover:text-slate-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
+          <PipelineCountdown targetDate={interview?.scheduled_at} />
+          <InterviewContextCard schedule={scheduleData} />
           <HardwarePreflight />
         </div>
       </div>

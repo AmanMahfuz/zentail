@@ -1,6 +1,7 @@
 import React from "react";
 import { BuilderResumeData } from "@/types/resume-builder";
 import { categorizeSkills } from "@/lib/resume/skills-categorizer";
+import { formatDateRange } from "@/lib/resume/date-utils";
 
 interface TemplateProps {
   data: BuilderResumeData;
@@ -56,7 +57,7 @@ export default function ExperiencedTemplate({ data }: TemplateProps) {
             className="font-bold tracking-tight text-slate-950 uppercase"
             style={{ fontSize: "20pt", lineHeight: "1.05" }}
           >
-            {contact.name || "AMAN MAHFUZ KZ"}
+            {contact.name || "Candidate Name"}
           </h1>
           {contact.title && (
             <span
@@ -155,7 +156,7 @@ export default function ExperiencedTemplate({ data }: TemplateProps) {
                     </span>
                   </span>
                   <span className="text-slate-600 font-normal shrink-0" style={{ fontSize: "9pt" }}>
-                    {exp.startDate} — {exp.current ? "Present" : exp.endDate}
+                    {formatDateRange(exp.startDate, exp.endDate, exp.current)}
                   </span>
                 </div>
                 {exp.bullets && exp.bullets.length > 0 && (
@@ -237,7 +238,7 @@ export default function ExperiencedTemplate({ data }: TemplateProps) {
                   {edu.gpa ? ` (GPA: ${edu.gpa})` : ""}
                 </span>
                 <span className="text-slate-600 shrink-0" style={{ fontSize: "9pt" }}>
-                  {edu.endDate}
+                  {formatDateRange(edu.startDate, edu.endDate)}
                 </span>
               </div>
             ))}

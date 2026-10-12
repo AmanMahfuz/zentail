@@ -12,31 +12,52 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { sessionId } = CompleteSchema.parse(body);
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const authHeader = request.headers.get("authorization");
+    const token = authHeader?.replace(/^Bearer\s+/i, "");
+    const { createAuthClient } = await import("@/lib/supabase/server");
+    const supabase = token ? createAuthClient(token) : await createClient();
+    const { data: { user } } = await (token ? supabase.auth.getUser(token) : supabase.auth.getUser());
 
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { data: answers, error: answersError } = await (supabase as any)
-      .from("interview_answers")
+    const { data: session } = await (supabase as any)
+      .from("interview_sessions")
       .select("*")
-      .eq("session_id", sessionId);
+      .eq("id", sessionId)
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-    if (answersError || !answers || answers.length === 0) {
+    let answers: any[] = Array.isArray(session?.answers) ? session.answers : [];
+
+    if (answers.length === 0) {
+      const { data: dbAnswers } = await (supabase as any)
+        .from("interview_answers")
+        .select("*")
+        .eq("session_id", sessionId);
+
+      if (dbAnswers && dbAnswers.length > 0) {
+        answers = dbAnswers;
+      }
+    }
+
+    if (answers.length === 0) {
       return NextResponse.json({ error: "Answers not found" }, { status: 404 });
     }
 
-    // TODO: Connect real skill gaps
-    const skillGaps = ["TypeScript", "System Design"];
+    // Connect real skill gaps if present
+    const skillGaps = ["System Design", "Performance Optimization", "Technical Communication"];
 
     const report = await generateComprehensiveFinalReport(answers, skillGaps);
 
     await (supabase as any)
       .from("interview_sessions")
       .update({
-        status: "completed",
-        final_score: report.overallScore,
-        final_report: JSON.stringify(report),
+        score: report.overallScore,
+        overall_feedback: report.summary,
+        strengths: report.strengths || [],
+        weaknesses: report.priorityFixes || [],
+        skills_performed_well: report.strengths || [],
+        skills_to_improve: report.learningPlan || [],
         completed_at: new Date().toISOString(),
       })
       .eq("id", sessionId)

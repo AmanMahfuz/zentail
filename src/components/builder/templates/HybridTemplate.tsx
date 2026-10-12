@@ -1,6 +1,7 @@
 import React from "react";
 import { BuilderResumeData } from "@/types/resume-builder";
 import { categorizeSkills } from "@/lib/resume/skills-categorizer";
+import { formatDateRange } from "@/lib/resume/date-utils";
 
 interface TemplateProps {
   data: BuilderResumeData;
@@ -165,7 +166,7 @@ export default function HybridTemplate({ data }: TemplateProps) {
                     </span>
                   </span>
                   <span className="text-slate-700 font-normal" style={{ fontSize: "10pt" }}>
-                    {exp.startDate} – {exp.current ? "Present" : exp.endDate}
+                    {formatDateRange(exp.startDate, exp.endDate, exp.current)}
                   </span>
                 </div>
                 {exp.bullets && exp.bullets.length > 0 && (
@@ -201,9 +202,11 @@ export default function HybridTemplate({ data }: TemplateProps) {
                     {edu.degree}
                     {edu.field ? ` – ${edu.field}` : ""}
                   </span>
-                  <span className="text-slate-700 font-normal" style={{ fontSize: "10pt" }}>
-                    Graduated: {edu.endDate}
-                  </span>
+                  {edu.endDate && (
+                    <span className="text-slate-700 font-normal" style={{ fontSize: "10pt" }}>
+                      {edu.endDate.toLowerCase().includes("present") ? "Present" : `Graduated: ${edu.endDate}`}
+                    </span>
+                  )}
                 </div>
                 <div className="text-slate-700" style={{ fontSize: "10pt" }}>
                   <span>{edu.school}</span>
